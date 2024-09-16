@@ -85,7 +85,7 @@ def plot_spec_phot_data(fname_spec_out, fname_phot_out, f_lam=False):
 
     # --------- PHOTOMETRY --------- #
     ax.errorbar(phot_wavs, phot_fluxes, yerr=phot_efluxes,
-                fmt='o', ms=8, color='steelblue', markeredgecolor='k', ecolor='grey', elinewidth=1, markeredgewidth=1,
+                fmt='o', ms=8, color='cornflowerblue', markeredgecolor='k', ecolor='grey', elinewidth=1, markeredgewidth=1,
                 zorder=1, alpha=0.9)
 
     # emission lines for overplotting
@@ -174,7 +174,7 @@ def plot_fitted_spectrum(fit):
     
     # ---------- PHOTOMETRY ---------- #
     ax.errorbar(fit.galaxy.filter_set.eff_wavs/10000, fit.galaxy.photometry[:,1],
-                fmt='o', ms=8, color='steelblue', markeredgecolor='k', ecolor='grey', elinewidth=1, markeredgewidth=1,
+                fmt='o', ms=8, color='cornflowerblue', markeredgecolor='k', ecolor='grey', elinewidth=0.5, markeredgewidth=1,
                 zorder=1, alpha=0.9, label='photometry')
     
     
