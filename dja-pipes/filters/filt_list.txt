@@ -1,0 +1,7 @@
+../filters/f090w.txt
+../filters/f115w.txt
+../filters/f150w.txt
+../filters/f200w.txt
+../filters/f277w.txt
+../filters/f356w.txt
+../filters/f444w.txt
