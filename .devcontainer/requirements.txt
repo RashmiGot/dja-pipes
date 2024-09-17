@@ -1,0 +1,9 @@
+bagpipes
+jupyterlab
+notebook
+"grizli[hst,jwst,aws,test,docs]"
+eazy
+git+https://github.com/karllark/dust_attenuation.git
+msaexp
+wget
+plotly
