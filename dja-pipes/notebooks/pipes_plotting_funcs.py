@@ -108,6 +108,8 @@ def plot_spec_phot_data(fname_spec_out, fname_phot_out, f_lam=False):
     
     ax.set_xlabel('Wavelength [$\mathrm{\mu m}$]')
     ax.set_ylabel('${\\rm \mathrm{f_{\\nu}}\\ [\\mu Jy]}$')
+    if f_lam:
+        ax.set_ylabel('${\\rm \mathrm{f_{\\lambda}}\\ [erg\ s^{-1} cm^{-2} \AA^{-1}]}$')
 
     ax.set_xlim(np.min(spec_wavs), np.max(spec_wavs))
     
@@ -124,13 +126,14 @@ def plot_spec_phot_data(fname_spec_out, fname_phot_out, f_lam=False):
 # --------------------------------------------------------------
 # ----------------------------------- PLOT FITTED SPECTRAL MODEL
 # --------------------------------------------------------------
-def plot_fitted_spectrum(fit):
+def plot_fitted_spectrum(fit, f_lam=False):
     """
     Plots fitted BAGPIPES spectral model, observed spectrum and observed photometry of given source
     
     Parameters
     ----------
     fit : fit object from BAGPIPES (where fit = pipes.fit(galaxy, fit_instructions))
+    f_lam : if True, output plot is in f_lambda, if False, in f_nu, format=bool
 
     Returns
     -------
@@ -143,7 +146,7 @@ def plot_fitted_spectrum(fit):
     
     y_scale = float(int(np.log10(ymax))-1)
     
-    wavs = fit.galaxy.spectrum[:, 0]
+    wavs = fit.galaxy.spectrum[:, 0]/10000
     
     spec_post = np.copy(fit.posterior.samples["spectrum"])
     
@@ -156,6 +159,26 @@ def plot_fitted_spectrum(fit):
     post = np.percentile(spec_post, (16, 50, 84), axis=0).T#*10**-y_scale
 
     calib_50 = np.percentile(fit.posterior.samples["calib"], 50, axis=0).T
+
+    spec_fluxes = fit.galaxy.spectrum[:,1]*calib_50
+    spec_efluxes = fit.galaxy.spectrum[:,2]*calib_50
+
+    phot_wavs = fit.galaxy.filter_set.eff_wavs/10000
+    phot_fluxes = fit.galaxy.photometry[:,1]
+
+    spec_fluxes_model = post[:,1]
+    spec_fluxes_model_lo = post[:,0]
+    spec_fluxes_model_hi = post[:,2]
+
+    if not f_lam:
+        spec_fluxes = convert_cgs2mujy(spec_fluxes, wavs*10000)
+        spec_efluxes = convert_cgs2mujy(spec_efluxes, wavs*10000)
+
+        phot_fluxes = convert_cgs2mujy(phot_fluxes, phot_wavs*10000)
+
+        spec_fluxes_model = convert_cgs2mujy(spec_fluxes_model, wavs*10000)
+        spec_fluxes_model_lo = convert_cgs2mujy(spec_fluxes_model_lo, wavs*10000)
+        spec_fluxes_model_hi = convert_cgs2mujy(spec_fluxes_model_hi, wavs*10000)
     
     # plotting spectrum
     fig,ax = plt.subplots(figsize=(10,4.5))
@@ -165,15 +188,15 @@ def plot_fitted_spectrum(fit):
     ##################################
     
     # ---------- SPECTRUM ---------- #
-    ax.plot(fit.galaxy.spec_wavs/10000, fit.galaxy.spectrum[:,1]*calib_50,
+    ax.plot(wavs, spec_fluxes,
             zorder=-1, color='slategrey', alpha=0.7, lw=1, label='spectrum (scaled)')
-    ax.fill_between(fit.galaxy.spec_wavs/10000,
-                    fit.galaxy.spectrum[:,1]*calib_50-fit.galaxy.spectrum[:,2]*calib_50,
-                    fit.galaxy.spectrum[:,1]*calib_50+fit.galaxy.spectrum[:,2]*calib_50,
+    ax.fill_between(wavs,
+                    spec_fluxes-spec_efluxes,
+                    spec_fluxes+spec_efluxes,
                     zorder=-1, color='slategrey', alpha=0.1)
     
     # ---------- PHOTOMETRY ---------- #
-    ax.errorbar(fit.galaxy.filter_set.eff_wavs/10000, fit.galaxy.photometry[:,1],
+    ax.errorbar(phot_wavs, phot_fluxes,
                 fmt='o', ms=8, color='cornflowerblue', markeredgecolor='k', ecolor='grey', elinewidth=0.5, markeredgewidth=1,
                 zorder=1, alpha=0.9, label='photometry')
     
@@ -183,10 +206,10 @@ def plot_fitted_spectrum(fit):
     ##################################
     
     # ---------- SPECTRUM ---------- #
-    ax.plot(fit.galaxy.spec_wavs/10000, post[:,1],
+    ax.plot(wavs, spec_fluxes_model,
             zorder=-1, color='forestgreen', alpha=0.7, lw=1.5, label='model spectrum (scaled)')
-    ax.fill_between(fit.galaxy.spec_wavs/10000,
-                    post[:,0], post[:,2],
+    ax.fill_between(wavs,
+                    spec_fluxes_model_lo, spec_fluxes_model_hi,
                     zorder=-1, color='forestgreen', alpha=0.1)
     
     
@@ -196,6 +219,8 @@ def plot_fitted_spectrum(fit):
     
     ax.set_xlabel('Wavelength [$\mathrm{\mu m}$]')
     ax.set_ylabel('${\\rm \mathrm{f_{\\lambda}}\\ [erg\ s^{-1} cm^{-2} \AA^{-1}]}$')
+    if not f_lam:
+        ax.set_ylabel('${\\rm \mathrm{f_{\\nu}}\\ [\\mu Jy]}$')
     
     ax.legend()
     
