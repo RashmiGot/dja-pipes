@@ -122,8 +122,8 @@ def plot_spec_phot_data(fname_spec_out, fname_phot_out, f_lam=False):
 
     # --------- PHOTOMETRY --------- #
     ax.errorbar(phot_wavs, phot_fluxes, yerr=phot_efluxes,
-                fmt='o', ms=8, color='cornflowerblue', markeredgecolor='k', ecolor='grey', elinewidth=1, markeredgewidth=1,
-                zorder=1, alpha=0.9)
+                fmt='o', ms=8, color='gainsboro', markeredgecolor='k', ecolor='grey', elinewidth=1, markeredgewidth=1.,
+                zorder=1, alpha=1.)
 
     # emission lines for overplotting
     line_wavelengths, line_ratios = get_line_wavelengths()
@@ -197,27 +197,37 @@ def plot_fitted_spectrum(fit, f_lam=False):
 
     calib_50 = np.percentile(fit.posterior.samples["calib"], 50, axis=0).T
 
+    phot_post = np.percentile(fit.posterior.samples["photometry"], (16, 50, 84), axis=0).T
+
     spec_fluxes = fit.galaxy.spectrum[:,1]*calib_50
     spec_efluxes = fit.galaxy.spectrum[:,2]*calib_50
-
-    phot_wavs = fit.galaxy.filter_set.eff_wavs/10000
-    phot_fluxes = fit.galaxy.photometry[:,1]
-    phot_efluxes = fit.galaxy.photometry[:,2]
 
     spec_fluxes_model = post[:,1]
     spec_fluxes_model_lo = post[:,0]
     spec_fluxes_model_hi = post[:,2]
 
+    phot_wavs = fit.galaxy.filter_set.eff_wavs/10000
+    phot_fluxes = fit.galaxy.photometry[:,1]
+    phot_efluxes = fit.galaxy.photometry[:,2]
+
+    phot_fluxes_model = phot_post[:,1]
+    phot_fluxes_model_lo = phot_post[:,0]
+    phot_fluxes_model_hi = phot_post[:,2]
+
     if not f_lam:
         spec_fluxes = convert_cgs2mujy(spec_fluxes, wavs*10000)
         spec_efluxes = convert_cgs2mujy(spec_efluxes, wavs*10000)
 
-        phot_fluxes = convert_cgs2mujy(phot_fluxes, phot_wavs*10000)
-        phot_efluxes = convert_cgs2mujy(phot_efluxes, phot_wavs*10000)
-
         spec_fluxes_model = convert_cgs2mujy(spec_fluxes_model, wavs*10000)
         spec_fluxes_model_lo = convert_cgs2mujy(spec_fluxes_model_lo, wavs*10000)
         spec_fluxes_model_hi = convert_cgs2mujy(spec_fluxes_model_hi, wavs*10000)
+
+        phot_fluxes = convert_cgs2mujy(phot_fluxes, phot_wavs*10000)
+        phot_efluxes = convert_cgs2mujy(phot_efluxes, phot_wavs*10000)
+
+        phot_fluxes_model = convert_cgs2mujy(phot_fluxes_model, phot_wavs*10000)
+        phot_fluxes_model_lo = convert_cgs2mujy(phot_fluxes_model_lo, phot_wavs*10000)
+        phot_fluxes_model_hi = convert_cgs2mujy(phot_fluxes_model_hi, phot_wavs*10000)
     
     # plotting spectrum
     fig,ax = plt.subplots(figsize=(10,4.5))
@@ -236,8 +246,8 @@ def plot_fitted_spectrum(fit, f_lam=False):
     
     # ---------- PHOTOMETRY ---------- #
     ax.errorbar(phot_wavs, phot_fluxes, yerr=phot_efluxes,
-                fmt='o', ms=8, color='cornflowerblue', markeredgecolor='k', ecolor='grey', elinewidth=0.5, markeredgewidth=1,
-                zorder=1, alpha=0.9, label='photometry')
+                fmt='o', ms=8, color='gainsboro', markeredgecolor='k', ecolor='grey', elinewidth=0.5, markeredgewidth=1.,
+                zorder=1, alpha=1., label='photometry')
     
     
     ##################################
@@ -250,6 +260,11 @@ def plot_fitted_spectrum(fit, f_lam=False):
     ax.fill_between(wavs,
                     spec_fluxes_model_lo, spec_fluxes_model_hi,
                     zorder=-1, color='forestgreen', alpha=0.1)
+    
+    # ---------- PHOTOMETRY ---------- #
+    ax.errorbar(phot_wavs, phot_fluxes_model, #yerr=[phot_fluxes_model_lo, phot_fluxes_model_hi],
+                fmt='o', ms=8, color='cornflowerblue', markeredgecolor='cornflowerblue', ecolor='grey', elinewidth=0.5, markeredgewidth=1.,
+                zorder=1, alpha=0.9, label='model photometry')
     
     
     ##################################
