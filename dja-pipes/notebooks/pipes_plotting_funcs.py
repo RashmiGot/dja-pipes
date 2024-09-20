@@ -22,11 +22,46 @@ matplotlib.rcParams['mathtext.fontset'] = 'stix'
 matplotlib.rcParams['font.family'] = 'STIXGeneral'
 
 
+# --------------------------------------------------------------
+# ------------------------- EFFECTIVE WAVELENGTH OF PHOT FILTERS
+# --------------------------------------------------------------
+
+def calc_eff_wavs(filt_list):
+    """
+    Calculates effective wavelengths of photometric filters
+    
+    Parameters
+    ----------
+    filt_list : array of paths to filter files, each element is a string
+
+    Returns
+    -------
+    eff_wavs : effective wavelengths of the input filters, format=numpy array
+    """
+
+    eff_wavs = np.zeros(len(filt_list))
+
+    for i in range(len(eff_wavs)):
+
+        filt_dict = np.loadtxt(filt_list[i], usecols=(0, 1))
+
+        dlambda = np.diff(filt_dict[:,0]) # calculating delta lambda
+        dlambda = np.append(dlambda, dlambda[-1]) # adding dummy delta lambda value to make dlambda array shape equal to filter array shape 
+        filt_weights = dlambda*filt_dict[:,1] # filter weights
+
+        # effective wav
+        eff_wavs[i] = np.sqrt(np.sum(filt_weights*filt_dict[:,0]) 
+                                            / np.sum(filt_weights
+                                            / filt_dict[:,0]))
+        
+    return eff_wavs
+
+
 
 # --------------------------------------------------------------
 # ---------------------- PLOT SPECTROSCOPIC AND PHOTOMETRIC DATA
 # --------------------------------------------------------------
-def plot_spec_phot_data(fname_spec_out, fname_phot_out, f_lam=False):
+def plot_spec_phot_data(fname_spec_out, fname_phot_out, filt_list, f_lam=False):
     """
     Plots spectrum and photometry of given source
     
@@ -61,7 +96,9 @@ def plot_spec_phot_data(fname_spec_out, fname_phot_out, f_lam=False):
     phot_fluxes = np.lib.recfunctions.structured_to_unstructured(np.array(phot_tab[list(flux_colNames)]))[0]
     phot_efluxes = np.lib.recfunctions.structured_to_unstructured(np.array(phot_tab[list(eflux_colNames)]))[0]
     
-    phot_wavs = np.array([0.9,1.15,1.5,2.0,2.77,3.56,4.44])
+    # effective wavelengths of photometric filters
+    phot_wavs = calc_eff_wavs(filt_list) / 10000
+    
 
     # plotting spectrum
     if f_lam:
@@ -165,6 +202,7 @@ def plot_fitted_spectrum(fit, f_lam=False):
 
     phot_wavs = fit.galaxy.filter_set.eff_wavs/10000
     phot_fluxes = fit.galaxy.photometry[:,1]
+    phot_efluxes = fit.galaxy.photometry[:,2]
 
     spec_fluxes_model = post[:,1]
     spec_fluxes_model_lo = post[:,0]
@@ -175,6 +213,7 @@ def plot_fitted_spectrum(fit, f_lam=False):
         spec_efluxes = convert_cgs2mujy(spec_efluxes, wavs*10000)
 
         phot_fluxes = convert_cgs2mujy(phot_fluxes, phot_wavs*10000)
+        phot_efluxes = convert_cgs2mujy(phot_efluxes, phot_wavs*10000)
 
         spec_fluxes_model = convert_cgs2mujy(spec_fluxes_model, wavs*10000)
         spec_fluxes_model_lo = convert_cgs2mujy(spec_fluxes_model_lo, wavs*10000)
@@ -196,7 +235,7 @@ def plot_fitted_spectrum(fit, f_lam=False):
                     zorder=-1, color='slategrey', alpha=0.1)
     
     # ---------- PHOTOMETRY ---------- #
-    ax.errorbar(phot_wavs, phot_fluxes,
+    ax.errorbar(phot_wavs, phot_fluxes, yerr=phot_efluxes,
                 fmt='o', ms=8, color='cornflowerblue', markeredgecolor='k', ecolor='grey', elinewidth=0.5, markeredgewidth=1,
                 zorder=1, alpha=0.9, label='photometry')
     
