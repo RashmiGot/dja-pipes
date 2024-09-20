@@ -61,7 +61,7 @@ def calc_eff_wavs(filt_list):
 # --------------------------------------------------------------
 # ---------------------- PLOT SPECTROSCOPIC AND PHOTOMETRIC DATA
 # --------------------------------------------------------------
-def plot_spec_phot_data(fname_spec_out, fname_phot_out, filt_list, f_lam=False):
+def plot_spec_phot_data(fname_spec_out, fname_phot_out, f_lam=False):
     """
     Plots spectrum and photometry of given source
     
@@ -86,12 +86,12 @@ def plot_spec_phot_data(fname_spec_out, fname_phot_out, filt_list, f_lam=False):
     phot_tab = Table.read(f'../files/{fname_phot_out}', format='ascii.commented_header')
     z_spec = phot_tab['z_spec'].value[0]
 
+    # jwst filter list
+    filt_list = np.loadtxt("../filters/filt_list.txt", dtype="str")
+
     # extract fluxes from cat
-    flux_colMask = [col.endswith('_tot_1') for col in phot_tab.colnames]
-    eflux_colMask = [col.endswith('_etot_1') for col in phot_tab.colnames]
-    
-    flux_colNames = np.array(phot_tab.colnames)[flux_colMask]
-    eflux_colNames = np.array(phot_tab.colnames)[eflux_colMask]
+    flux_colNames = [filt_list_i.split('/')[-1].split('.')[0]+'_tot_1' for filt_list_i in filt_list]
+    eflux_colNames = [filt_list_i.split('/')[-1].split('.')[0]+'_etot_1' for filt_list_i in filt_list]
     
     phot_fluxes = np.lib.recfunctions.structured_to_unstructured(np.array(phot_tab[list(flux_colNames)]))[0]
     phot_efluxes = np.lib.recfunctions.structured_to_unstructured(np.array(phot_tab[list(eflux_colNames)]))[0]

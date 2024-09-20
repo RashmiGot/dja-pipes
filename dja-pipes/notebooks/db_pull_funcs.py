@@ -2,7 +2,6 @@
 import wget
 import os
 
-from grizli.aws import db
 from astropy.table import Table
 
 
@@ -58,47 +57,34 @@ def pull_phot_from_db(fname_spec, fname_phot_out, file_path='../files/'):
     None
     """
 
-    # SQL query with all required parameters
-    nrp_gr_match = db.SQL(f"""
-    SELECT ne.root as root_spec, ne.file as file_spec, nr.z as z_spec, nrm.grade,
-           nrp.file_phot, nrp.id_phot, nrp.dr,
-           gr.flux_radius,
-           gr.f090w_tot_0, gr.f090w_etot_0, gr.f090w_tot_1, gr.f090w_etot_1,
-           gr.f115w_tot_0, gr.f115w_etot_0, gr.f115w_tot_1, gr.f115w_etot_1,
-           gr.f150w_tot_0, gr.f150w_etot_0, gr.f150w_tot_1, gr.f150w_etot_1,
-           gr.f200w_tot_0, gr.f200w_etot_0, gr.f200w_tot_1, gr.f200w_etot_1,
-           gr.f277w_tot_0, gr.f277w_etot_0, gr.f277w_tot_1, gr.f277w_etot_1,
-           gr.f356w_tot_0, gr.f356w_etot_0, gr.f356w_tot_1, gr.f356w_etot_1,
-           gr.f444w_tot_0, gr.f444w_etot_0, gr.f444w_tot_1, gr.f444w_etot_1,
-           gr.file_zout, 
-           gr.z_phot
-    FROM nirspec_extractions ne,
-         nirspec_redshifts nr,
-         (SELECT nrm.file, nrm.z, nrm.grade          /* most recent grade */
-                 FROM nirspec_redshifts_manual nrm,
-                      (SELECT nrm2.file, MAX(nrm2.ctime) as max_ctime
-                             FROM nirspec_redshifts_manual nrm2
-                             GROUP BY nrm2.file
-                      ) nrm_sorted
-                 WHERE nrm.ctime >= nrm_sorted.max_ctime
-                 AND nrm.file = nrm_sorted.file
-                 AND nrm.z > 0
-         ) nrm,
-         nirspec_phot_match nrp,
-         grizli_photometry gr
-    WHERE (ne.root LIKE '%%v3')
-    --AND (nrp.file_phot LIKE '%%v7.2%%')
-    AND ne.file = nr.file
-    AND ne.file LIKE '{fname_spec}'
-    AND nrp.dr < 0.2 
-    AND (nrp.file_phot = gr.file_phot AND nrp.id_phot = gr.id_phot) /* match to photometry */
-    AND ne.file = nrp.file_spec
-    AND ne.file = nrm.file
-    ORDER BY grating
-    """)
+    url = 'https://grizli-cutout.herokuapp.com/grizli_photometry?file_spec='
+    nrp_gr_match = Table.read(url+fname_spec, format='csv')
 
     # write SQL query output to astropy Table
-    phot_tab = Table(nrp_gr_match[-1])
+    phot_tab = Table(nrp_gr_match[0])
     # write table to output file
     phot_tab.write(f'{file_path}{fname_phot_out}', format='ascii.commented_header', overwrite=True)
 
+
+
+
+# --------------------------------------------------------------
+# -------------------- PULL SPECTROSCPOIC REDSHIFT FROM DATABASE
+# --------------------------------------------------------------
+
+def pull_zspec_from_db(fname_spec):
+    """
+    Downloads spectroscopic redshift from DJA AWS database
+    
+    Parameters
+    ----------
+    fname_spec : filename of spectrum, e.g. 'rubies-uds3-v3_prism-clear_4233_62812.spec.fits', format=str
+    Returns
+    -------
+    None
+    """
+
+    z_spec_url = 'https://grizli-cutout.herokuapp.com/nirspec_file_redshift?file='
+    z_spec = Table.read(z_spec_url+fname_spec, format='csv')['z'][0]
+
+    return z_spec
