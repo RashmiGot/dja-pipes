@@ -93,11 +93,17 @@ def plot_spec_phot_data(fname_spec_out, fname_phot_out, f_lam=False):
     flux_colNames = [filt_list_i.split('/')[-1].split('.')[0]+'_tot_1' for filt_list_i in filt_list]
     eflux_colNames = [filt_list_i.split('/')[-1].split('.')[0]+'_etot_1' for filt_list_i in filt_list]
     
-    phot_fluxes = np.lib.recfunctions.structured_to_unstructured(np.array(phot_tab[list(flux_colNames)]))[0]
-    phot_efluxes = np.lib.recfunctions.structured_to_unstructured(np.array(phot_tab[list(eflux_colNames)]))[0]
+    phot_fluxes_temp = np.lib.recfunctions.structured_to_unstructured(np.array(phot_tab[list(flux_colNames)]))
+    phot_efluxes_temp = np.lib.recfunctions.structured_to_unstructured(np.array(phot_tab[list(eflux_colNames)]))
+
+    phot_flux_mask = phot_fluxes_temp>-90
+
+    phot_fluxes = phot_fluxes_temp[phot_flux_mask]
+    phot_efluxes = phot_efluxes_temp[phot_flux_mask]
     
     # effective wavelengths of photometric filters
-    phot_wavs = calc_eff_wavs(filt_list) / 10000
+    phot_wavs_temp = (calc_eff_wavs(filt_list) / 10000)
+    phot_wavs = np.array(phot_wavs_temp)[phot_flux_mask[0]]
     
 
     # plotting spectrum
@@ -206,13 +212,15 @@ def plot_fitted_spectrum(fit, f_lam=False):
     spec_fluxes_model_lo = post[:,0]
     spec_fluxes_model_hi = post[:,2]
 
-    phot_wavs = fit.galaxy.filter_set.eff_wavs/10000
-    phot_fluxes = fit.galaxy.photometry[:,1]
-    phot_efluxes = fit.galaxy.photometry[:,2]
+    phot_flux_mask = fit.galaxy.photometry[:,2]<1e90
 
-    phot_fluxes_model = phot_post[:,1]
-    phot_fluxes_model_lo = phot_post[:,0]
-    phot_fluxes_model_hi = phot_post[:,2]
+    phot_wavs = (fit.galaxy.filter_set.eff_wavs/10000)[phot_flux_mask]
+    phot_fluxes = (fit.galaxy.photometry[:,1])[phot_flux_mask]
+    phot_efluxes = (fit.galaxy.photometry[:,2])[phot_flux_mask]
+
+    phot_fluxes_model = (phot_post[:,1])[phot_flux_mask]
+    phot_fluxes_model_lo = (phot_post[:,0])[phot_flux_mask]
+    phot_fluxes_model_hi = (phot_post[:,2])[phot_flux_mask]
 
     if not f_lam:
         spec_fluxes = convert_cgs2mujy(spec_fluxes, wavs*10000)
