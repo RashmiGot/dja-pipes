@@ -5,3 +5,4 @@ eazy
 git+https://github.com/karllark/dust_attenuation.git
 msaexp
 wget
+tabulate
