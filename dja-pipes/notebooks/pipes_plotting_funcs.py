@@ -139,16 +139,17 @@ def plot_spec_phot_data(fname_spec, fname_spec_out, fname_phot_out, f_lam=False)
 
     # emission lines for overplotting
     line_wavelengths, line_ratios = get_line_wavelengths()
-    line_names = ["Ha+NII", "OIII+Hb"]
+    line_names = ["Ha+NII", "OIII+Hb", "Hg", "Hd", "PaA", "PaB", "PaG", "Lya"]
 
     # plot emisison lines
     for i, line in enumerate(line_names):
-        ax.vlines((np.array(line_wavelengths[line]))*(1+z_spec)/10000,
-                  np.min(spec_fluxes), np.max(spec_fluxes),
-                  color='slategrey', ls='--', lw=1, alpha=0.5)
-        ax.text((np.array(line_wavelengths[line][-1])-200)*(1+z_spec)/10000,
-                np.max(spec_fluxes)-0.15*np.max(spec_fluxes),
-                line, rotation=90, color='slategrey', alpha=0.5)
+        if (((np.array(line_wavelengths[line]))*(1+z_spec)/10000)<(spec_wavs.max())).all() and (((np.array(line_wavelengths[line]))*(1+z_spec)/10000)>(spec_wavs.min())).all():
+            ax.vlines((np.array(line_wavelengths[line]))*(1+z_spec)/10000,
+                    np.min(spec_fluxes), np.max(spec_fluxes),
+                    color='slategrey', ls='--', lw=1, alpha=0.5)
+            ax.text((np.array(line_wavelengths[line][-1]))*(1+z_spec)/10000 - 800/10000,
+                    np.max(spec_fluxes)-0.15*np.max(spec_fluxes),
+                    line, rotation=90, color='slategrey', alpha=0.5)
 
     
     ##################################
@@ -164,7 +165,7 @@ def plot_spec_phot_data(fname_spec, fname_spec_out, fname_phot_out, f_lam=False)
     
     # ax.legend(loc='upper left')
     fname = fname_spec.split('.spec')[0]
-    ax.set_title(fname+'\nz='+str(z_spec), loc='right')
+    ax.set_title(fname+'\nz='+str(np.round(z_spec,4)), loc='right')
 
     figure_timestamp(fig, fontsize=8)
     
@@ -302,7 +303,7 @@ def plot_fitted_spectrum(fit, fname_spec, f_lam=False):
     ax.legend()
 
     fname = fname_spec.split('.spec')[0]
-    ax.set_title(fname+'\nz='+str(z_spec), loc='right')
+    ax.set_title(fname+'\nz='+str(np.round(z_spec,4)), loc='right')
 
     figure_timestamp(fig, fontsize=8)
     
@@ -379,7 +380,7 @@ def plot_fitted_sfh(fit, fname_spec):
     ax.set_xlabel("Age of Universe [Gyr]")
 
     fname = fname_spec.split('.spec')[0]
-    ax.set_title(fname+'\nz='+str(z_spec), loc='right')
+    ax.set_title(fname+'\nz='+str(np.round(z_spec,4)), loc='right')
 
     figure_timestamp(fig, fontsize=8)
 
