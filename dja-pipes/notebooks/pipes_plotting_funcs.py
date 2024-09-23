@@ -5,14 +5,16 @@ import numpy as np
 from astropy.cosmology import Planck13 as cosmo
 from astropy.table import Table
 from grizli.utils import get_line_wavelengths
+from grizli.utils import figure_timestamp
 from pipes_fitting_funcs import convert_cgs2mujy
 from pipes_fitting_funcs import convert_mujy2cgs
+from db_pull_funcs import pull_zspec_from_db
 
 # ------- PLOTTING & FORMATTING ------- #
 import matplotlib.pyplot as plt
 from matplotlib import colors
 
-params = {'legend.fontsize':12,'axes.labelsize':16,'axes.titlesize':20,
+params = {'legend.fontsize':12,'axes.labelsize':16,'axes.titlesize':10,
           'xtick.labelsize':16,'ytick.labelsize':16,
           'xtick.top':True,'ytick.right':True,'xtick.direction':'in','ytick.direction':'in',
           "xtick.major.size":10,"xtick.minor.size":5,"ytick.major.size":10,"ytick.minor.size":5}
@@ -61,12 +63,14 @@ def calc_eff_wavs(filt_list):
 # --------------------------------------------------------------
 # ---------------------- PLOT SPECTROSCOPIC AND PHOTOMETRIC DATA
 # --------------------------------------------------------------
-def plot_spec_phot_data(fname_spec_out, fname_phot_out, f_lam=False):
+def plot_spec_phot_data(fname_spec, fname_spec_out, fname_phot_out, f_lam=False):
     """
     Plots spectrum and photometry of given source
     
     Parameters
     ----------
+    fname_spec : filename of spectrum for which corresponding photometry needs to be found,
+                 e.g. 'rubies-uds3-v3_prism-clear_4233_62812.spec.fits', format=str
     fname_spec_out : filename of spectrum stored '../files/', format=str
     fname_phot_out : filename of photometry stored '../files/', format=str
     f_lam : if True, output plot is in f_lambda, if False, in f_nu, format=bool
@@ -75,6 +79,9 @@ def plot_spec_phot_data(fname_spec_out, fname_phot_out, f_lam=False):
     -------
     None
     """
+
+    # spectroscopic redshift
+    z_spec = float(pull_zspec_from_db(fname_spec))
     
     # spectrum
     spec_tab = Table.read(f'../files/{fname_spec_out}', hdu=1)
@@ -84,7 +91,6 @@ def plot_spec_phot_data(fname_spec_out, fname_phot_out, f_lam=False):
 
     # photometry
     phot_tab = Table.read(f'../files/{fname_phot_out}', format='ascii.commented_header')
-    z_spec = phot_tab['z_spec'].value[0]
 
     # jwst filter list
     filt_list = np.loadtxt("../filters/filt_list.txt", dtype="str")
@@ -157,11 +163,15 @@ def plot_spec_phot_data(fname_spec_out, fname_phot_out, f_lam=False):
     ax.set_xlim(np.min(spec_wavs), np.max(spec_wavs))
     
     # ax.legend(loc='upper left')
+    fname = fname_spec.split('.spec')[0]
+    ax.set_title(fname+'\nz='+str(z_spec), loc='right')
+
+    figure_timestamp(fig, fontsize=8)
     
     plt.tight_layout()
 
-    imname = 'x'
-    # plt.savefig('images/{imname}.pdf', transparent=True)
+    imname = fname+'_data'
+    plt.savefig(f'images_temp/{imname}.pdf', transparent=True)
     plt.show()
 
 
@@ -169,19 +179,24 @@ def plot_spec_phot_data(fname_spec_out, fname_phot_out, f_lam=False):
 # --------------------------------------------------------------
 # ----------------------------------- PLOT FITTED SPECTRAL MODEL
 # --------------------------------------------------------------
-def plot_fitted_spectrum(fit, f_lam=False):
+def plot_fitted_spectrum(fit, fname_spec, f_lam=False):
     """
     Plots fitted BAGPIPES spectral model, observed spectrum and observed photometry of given source
     
     Parameters
     ----------
     fit : fit object from BAGPIPES (where fit = pipes.fit(galaxy, fit_instructions))
+    fname_spec : filename of spectrum for which corresponding photometry needs to be found,
+                 e.g. 'rubies-uds3-v3_prism-clear_4233_62812.spec.fits', format=str
     f_lam : if True, output plot is in f_lambda, if False, in f_nu, format=bool
 
     Returns
     -------
     None
     """
+
+    # spectroscopic redshift
+    z_spec = pull_zspec_from_db(fname_spec)
 
     fit.posterior.get_advanced_quantities()
 
@@ -285,11 +300,16 @@ def plot_fitted_spectrum(fit, f_lam=False):
         ax.set_ylabel('${\\rm \mathrm{f_{\\nu}}\\ [\\mu Jy]}$')
     
     ax.legend()
+
+    fname = fname_spec.split('.spec')[0]
+    ax.set_title(fname+'\nz='+str(z_spec), loc='right')
+
+    figure_timestamp(fig, fontsize=8)
     
     plt.tight_layout()
     
-    imname = ''
-    # plt.savefig(f'images/{imname}.pdf', transparent=True)
+    imname = fname+'_model'
+    plt.savefig(f'images_temp/{imname}.pdf', transparent=True)
     plt.show()
 
 
@@ -297,18 +317,23 @@ def plot_fitted_spectrum(fit, f_lam=False):
 # --------------------------------------------------------------
 # ---------------------------------- PLOT STAR-FORMATION HISTORY
 # --------------------------------------------------------------
-def plot_fitted_sfh(fit):
+def plot_fitted_sfh(fit, fname_spec):
     """
     Plots star-formation history from fitted BAGPIPES model
     
     Parameters
     ----------
     fit : fit object from BAGPIPES (where fit = pipes.fit(galaxy, fit_instructions))
+    fname_spec : filename of spectrum for which corresponding photometry needs to be found,
+                 e.g. 'rubies-uds3-v3_prism-clear_4233_62812.spec.fits', format=str
 
     Returns
     -------
     None
     """
+
+    # spectroscopic redshift
+    z_spec = pull_zspec_from_db(fname_spec)
     
     fit.posterior.get_advanced_quantities()
     
@@ -353,8 +378,17 @@ def plot_fitted_sfh(fit):
     ax.set_ylabel("${\\rm SFR \ [ M_\\odot yr^{-1}]}$")
     ax.set_xlabel("Age of Universe [Gyr]")
 
+    fname = fname_spec.split('.spec')[0]
+    ax.set_title(fname+'\nz='+str(z_spec), loc='right')
+
+    figure_timestamp(fig, fontsize=8)
+
 
     plt.tight_layout()
+
+    imname = fname+'_sfh'
+    plt.savefig(f'images_temp/{imname}.pdf', transparent=True)
+    plt.show()
 
 
 # --------------------------------------------------------------
