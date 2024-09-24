@@ -290,6 +290,24 @@ def plot_fitted_spectrum(fit, fname_spec, f_lam=False):
                 fmt='o', ms=8, color='cornflowerblue', markeredgecolor='cornflowerblue', ecolor='grey', elinewidth=0.5, markeredgewidth=1.,
                 zorder=1, alpha=0.9, label='model photometry')
     
+
+
+    ##################################
+    # ------- EMISSION LINES ------- #
+    ##################################
+
+    line_wavelengths, line_ratios = get_line_wavelengths()
+    line_names = ["Ha+NII", "OIII+Hb", "Hg", "Hd", "PaA", "PaB", "PaG", "Lya"]
+
+    # plot emisison lines
+    for i, line in enumerate(line_names):
+        if (((np.array(line_wavelengths[line]))*(1+z_spec)/10000)<(wavs.max())).all() and (((np.array(line_wavelengths[line]))*(1+z_spec)/10000)>(wavs.min())).all():
+            ax.vlines((np.array(line_wavelengths[line]))*(1+z_spec)/10000,
+                    np.min(spec_fluxes), np.max(spec_fluxes),
+                    color='slategrey', ls='--', lw=1, alpha=0.5)
+            ax.text((np.array(line_wavelengths[line][-1]))*(1+z_spec)/10000 - 800/10000,
+                    np.max(spec_fluxes)-0.15*np.max(spec_fluxes),
+                    line, rotation=90, color='slategrey', alpha=0.5)
     
     ##################################
     # --------- FORMATTING --------- #
@@ -300,7 +318,7 @@ def plot_fitted_spectrum(fit, fname_spec, f_lam=False):
     if not f_lam:
         ax.set_ylabel('${\\rm \mathrm{f_{\\nu}}\\ [\\mu Jy]}$')
     
-    ax.legend()
+    ax.legend(loc='upper left', framealpha=0.5)
 
     fname = fname_spec.split('.spec')[0]
     ax.set_title(fname+'\nz='+str(np.round(z_spec,4)), loc='right')
