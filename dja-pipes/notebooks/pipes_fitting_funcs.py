@@ -3,6 +3,43 @@ from astropy.table import Table
 import numpy as np
 
 
+
+# --------------------------------------------------------------
+# ------------------------- EFFECTIVE WAVELENGTH OF PHOT FILTERS
+# --------------------------------------------------------------
+
+def calc_eff_wavs(filt_list):
+    """
+    Calculates effective wavelengths of photometric filters
+    
+    Parameters
+    ----------
+    filt_list : array of paths to filter files, each element is a string
+
+    Returns
+    -------
+    eff_wavs : effective wavelengths of the input filters, format=numpy array
+    """
+
+    eff_wavs = np.zeros(len(filt_list))
+
+    for i in range(len(eff_wavs)):
+
+        filt_dict = np.loadtxt(filt_list[i], usecols=(0, 1))
+
+        dlambda = np.diff(filt_dict[:,0]) # calculating delta lambda
+        dlambda = np.append(dlambda, dlambda[-1]) # adding dummy delta lambda value to make dlambda array shape equal to filter array shape 
+        filt_weights = dlambda*filt_dict[:,1] # filter weights
+
+        # effective wav
+        eff_wavs[i] = np.sqrt(np.sum(filt_weights*filt_dict[:,0]) 
+                                            / np.sum(filt_weights
+                                            / filt_dict[:,0]))
+        
+    return eff_wavs
+
+
+
 # --------------------------------------------------------------
 # ------------------- CONVERT FLUX UNITS FROM CGS TO MICROJANSKY
 # --------------------------------------------------------------
@@ -65,8 +102,10 @@ def load_phot(ID):
 
     id = int(ID)
 
-    fname_phot_out = 'file_for_pipes.phot.cat'
-    phot_tab = Table.read(f'../files/{fname_phot_out}', format='ascii.commented_header')
+    speclist_cat = Table.read('spec_cat_temp.fits', format='fits')
+
+    fname_phot_out = speclist_cat[speclist_cat["id"]==id]["fname"][0]+'.phot.cat'#'file_for_pipes.phot.cat'
+    phot_tab = Table.read(f'files/{fname_phot_out}', format='ascii.commented_header')
 
     # jwst filter list
     filt_list = np.loadtxt("../filters/filt_list.txt", dtype="str")
@@ -78,19 +117,23 @@ def load_phot(ID):
     fluxes_muJy = np.lib.recfunctions.structured_to_unstructured(np.array(phot_tab[list(flux_colNames)]))[0]
     efluxes_muJy = np.lib.recfunctions.structured_to_unstructured(np.array(phot_tab[list(eflux_colNames)]))[0]
 
-    phot_wavs = np.array([0.9,1.15,1.5,2.0,2.77,3.56,4.44])*1e4 # convert photometric filter wavs to angstrom
+    phot_flux_mask = (fluxes_muJy>-90) & (efluxes_muJy>0)
+
+    # effective wavelengths of photometric filters
+    phot_wavs_temp = (calc_eff_wavs(filt_list))
+    phot_wavs = np.array(phot_wavs_temp)
 
     # convert fluxes from muJy to cgs
     fluxes = convert_mujy2cgs(fluxes_muJy,phot_wavs)
     efluxes = convert_mujy2cgs(efluxes_muJy,phot_wavs)
     
     # turn these into a 2D array
-    photometry = np.c_[fluxes,efluxes]
+    photometry = np.c_[fluxes,efluxes][phot_flux_mask]
 
-    # blow up the errors associated with any missing fluxes
-    for i in range(len(photometry)):
-        if (photometry[i, 0] == 0.) or (photometry[i, 1] <= 0):
-            photometry[i,:] = [0., 9.9*10**99.]
+    # # blow up the errors associated with any missing fluxes
+    # for i in range(len(photometry)):
+    #     if (photometry[i, 0] == 0.) or (photometry[i, 1] <= 0):
+    #         photometry[i,:] = [0., 9.9*10**99.]
             
     # enforce a maximum SNR of 20, or 10 in the IRAC channels
     for i in range(len(photometry)):
@@ -158,8 +201,10 @@ def load_spec(ID):
 
     id = int(ID)
 
-    fname_spec_out = 'file_for_pipes.spec.fits'
-    spec_tab = Table.read(f'../files/{fname_spec_out}', hdu=1)
+    speclist_cat = Table.read('spec_cat_temp.fits', format='fits')
+
+    fname_spec_out = speclist_cat[speclist_cat["id"]==id]["fname"][0]+'.spec.fits'#'file_for_pipes.spec.fits'
+    spec_tab = Table.read(f'files/{fname_spec_out}', hdu=1)
 
     spec_wavs = np.array(spec_tab['wave'])*1e4 # convert wavs to angstrom
 

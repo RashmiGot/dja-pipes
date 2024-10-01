@@ -63,17 +63,18 @@ def calc_eff_wavs(filt_list):
 # --------------------------------------------------------------
 # ---------------------- PLOT SPECTROSCOPIC AND PHOTOMETRIC DATA
 # --------------------------------------------------------------
-def plot_spec_phot_data(fname_spec, fname_spec_out, fname_phot_out, f_lam=False):
+def plot_spec_phot_data(fname_spec, fname_phot, f_lam=False, show=False, save=False, run='.'):
     """
     Plots spectrum and photometry of given source
     
     Parameters
     ----------
-    fname_spec : filename of spectrum for which corresponding photometry needs to be found,
-                 e.g. 'rubies-uds3-v3_prism-clear_4233_62812.spec.fits', format=str
-    fname_spec_out : filename of spectrum stored '../files/', format=str
-    fname_phot_out : filename of photometry stored '../files/', format=str
+    fname_spec : filename of spectrum e.g. 'rubies-uds3-v3_prism-clear_4233_62812.spec.fits', format=str
+    fname_phot : filename of photometry e.g. 'rubies-uds3-v3_prism-clear_4233_62812.phot.cat', format=str
     f_lam : if True, output plot is in f_lambda, if False, in f_nu, format=bool
+    show : specifies wherether or not to display the image, format=bool
+    save : specifies wherether or not to save the image, format=bool
+    run : name of bagpipes run, defaults to no run name, format=str
 
     Returns
     -------
@@ -84,13 +85,13 @@ def plot_spec_phot_data(fname_spec, fname_spec_out, fname_phot_out, f_lam=False)
     z_spec = float(pull_zspec_from_db(fname_spec))
     
     # spectrum
-    spec_tab = Table.read(f'../files/{fname_spec_out}', hdu=1)
+    spec_tab = Table.read(f'files/{fname_spec}', hdu=1)
     spec_fluxes = spec_tab['flux']
     spec_efluxes = spec_tab['err']
     spec_wavs = spec_tab['wave']
 
     # photometry
-    phot_tab = Table.read(f'../files/{fname_phot_out}', format='ascii.commented_header')
+    phot_tab = Table.read(f'files/{fname_phot}', format='ascii.commented_header')
 
     # jwst filter list
     filt_list = np.loadtxt("../filters/filt_list.txt", dtype="str")
@@ -102,7 +103,7 @@ def plot_spec_phot_data(fname_spec, fname_spec_out, fname_phot_out, f_lam=False)
     phot_fluxes_temp = np.lib.recfunctions.structured_to_unstructured(np.array(phot_tab[list(flux_colNames)]))
     phot_efluxes_temp = np.lib.recfunctions.structured_to_unstructured(np.array(phot_tab[list(eflux_colNames)]))
 
-    phot_flux_mask = phot_fluxes_temp>-90
+    phot_flux_mask = (phot_fluxes_temp>-90) & (phot_efluxes_temp>0)
 
     phot_fluxes = phot_fluxes_temp[phot_flux_mask]
     phot_efluxes = phot_efluxes_temp[phot_flux_mask]
@@ -171,25 +172,37 @@ def plot_spec_phot_data(fname_spec, fname_spec_out, fname_phot_out, f_lam=False)
     
     plt.tight_layout()
 
-    imname = fname+'_data'
-    plt.savefig(f'images_temp/{imname}.pdf', transparent=True)
-    plt.show()
+    if save:
+        # path to location where plots are saved
+        if run != ".":
+            plotPath = "pipes/plots/" + run
+        elif run == ".":
+            plotPath = "pipes/plots"
 
+        imname = fname+'_data'
+        plt.savefig(f'{plotPath}/{imname}.pdf', transparent=True)
+        plt.close(fig)
+
+    if show:
+        plt.show()
+        plt.close(fig)
+    
 
 
 # --------------------------------------------------------------
 # ----------------------------------- PLOT FITTED SPECTRAL MODEL
 # --------------------------------------------------------------
-def plot_fitted_spectrum(fit, fname_spec, f_lam=False):
+def plot_fitted_spectrum(fit, fname_spec, f_lam=False, show=False, save=False):
     """
     Plots fitted BAGPIPES spectral model, observed spectrum and observed photometry of given source
     
     Parameters
     ----------
     fit : fit object from BAGPIPES (where fit = pipes.fit(galaxy, fit_instructions))
-    fname_spec : filename of spectrum for which corresponding photometry needs to be found,
-                 e.g. 'rubies-uds3-v3_prism-clear_4233_62812.spec.fits', format=str
+    fname_spec : filename of spectrum e.g. 'rubies-uds3-v3_prism-clear_4233_62812.spec.fits', format=str
     f_lam : if True, output plot is in f_lambda, if False, in f_nu, format=bool
+    show : specifies wherether or not to display the image, format=bool
+    save : specifies wherether or not to save the image, format=bool
 
     Returns
     -------
@@ -273,7 +286,6 @@ def plot_fitted_spectrum(fit, fname_spec, f_lam=False):
                 fmt='o', ms=8, color='gainsboro', markeredgecolor='k', ecolor='grey', elinewidth=0.5, markeredgewidth=1.,
                 zorder=1, alpha=1., label='photometry')
     
-    
     ##################################
     # -------- FITTED MODEL -------- #
     ##################################
@@ -289,8 +301,6 @@ def plot_fitted_spectrum(fit, fname_spec, f_lam=False):
     ax.errorbar(phot_wavs, phot_fluxes_model, #yerr=[phot_fluxes_model_lo, phot_fluxes_model_hi],
                 fmt='o', ms=8, color='cornflowerblue', markeredgecolor='cornflowerblue', ecolor='grey', elinewidth=0.5, markeredgewidth=1.,
                 zorder=1, alpha=0.9, label='model photometry')
-    
-
 
     ##################################
     # ------- EMISSION LINES ------- #
@@ -327,24 +337,30 @@ def plot_fitted_spectrum(fit, fname_spec, f_lam=False):
     
     plt.tight_layout()
     
-    imname = fname+'_model'
-    plt.savefig(f'images_temp/{imname}.pdf', transparent=True)
-    plt.show()
+    if save:
+        plotpath = "pipes/plots/" + fit.run + "/" + fname + '_specfit.pdf'
+        plt.savefig(plotpath, transparent=True)
+        plt.close(fig)
+
+    if show:
+        plt.show()
+        plt.close(fig)
 
 
 
 # --------------------------------------------------------------
 # ---------------------------------- PLOT STAR-FORMATION HISTORY
 # --------------------------------------------------------------
-def plot_fitted_sfh(fit, fname_spec):
+def plot_fitted_sfh(fit, fname_spec, show=False, save=False):
     """
     Plots star-formation history from fitted BAGPIPES model
     
     Parameters
     ----------
     fit : fit object from BAGPIPES (where fit = pipes.fit(galaxy, fit_instructions))
-    fname_spec : filename of spectrum for which corresponding photometry needs to be found,
-                 e.g. 'rubies-uds3-v3_prism-clear_4233_62812.spec.fits', format=str
+    fname_spec : filename of spectrum e.g. 'rubies-uds3-v3_prism-clear_4233_62812.spec.fits', format=str
+    show : specifies wherether or not to display the image, format=bool
+    save : specifies wherether or not to save the image, format=bool
 
     Returns
     -------
@@ -366,7 +382,6 @@ def plot_fitted_sfh(fit, fname_spec):
 
     z_array = np.arange(0., 100., 0.01)
     age_at_z = cosmo.age(z_array).value
-    
     
     # Calculate median redshift and median age of Universe
     if "redshift" in fit.fitted_model.params:
@@ -392,7 +407,6 @@ def plot_fitted_sfh(fit, fname_spec):
     ax.set_ylim(0., np.max([ax.get_ylim()[1], 1.1*np.max(post[:, 2])]))
     ax.set_xlim(age_of_universe, 0)
 
-
     # Set axis labels
     ax.set_ylabel("${\\rm SFR \ [ M_\\odot yr^{-1}]}$")
     ax.set_xlabel("Age of Universe [Gyr]")
@@ -402,24 +416,30 @@ def plot_fitted_sfh(fit, fname_spec):
 
     figure_timestamp(fig, fontsize=8)
 
-
     plt.tight_layout()
 
-    imname = fname+'_sfh'
-    plt.savefig(f'images_temp/{imname}.pdf', transparent=True)
-    plt.show()
+    if save:
+        plotpath = "pipes/plots/" + fit.run + "/" + fname + '_sfh.pdf'
+        plt.savefig(plotpath, transparent=True)
+        plt.close(fig)
+
+    if show:
+        plt.show()
+        plt.close(fig)
 
 
 # --------------------------------------------------------------
 # -------------------------------- TABLE OF POSTERIOR PROPERTIES
 # --------------------------------------------------------------
-def get_posterior_sample_dists(fit):
+def get_posterior_sample_dists(fit, fname_spec, save=False):
     """
-    Makes table of 16th, 50th, and 84th percentile values of all posterior quantities from BAGPIPES fit
+    Makes table of 16th, 50th, and 84th percentile values of all posterior quantities from BAGPIPES fit, saves table to csv file
     
     Parameters
     ----------
     fit : fit object from BAGPIPES (where fit = pipes.fit(galaxy, fit_instructions))
+    fname_spec : filename of spectrum e.g. 'rubies-uds3-v3_prism-clear_4233_62812.spec.fits', format=str
+    save : specifies wherether or not to save the table, format=bool
 
     Returns
     -------
@@ -431,13 +451,29 @@ def get_posterior_sample_dists(fit):
     samples = fit.posterior.samples
     keys = list(samples.keys())
 
-    tab_info = []
+    tab = []
 
     for i in range(len(keys)):
     
-        tab_info.append(list([keys[i],
-                              np.round(np.percentile(samples[keys[i]],(16)),3),
-                              np.round(np.percentile(samples[keys[i]],(50)),3),
-                              np.round(np.percentile(samples[keys[i]],(84)),3)]))
+        tab.append(list([keys[i],
+                         np.percentile(samples[keys[i]],(16)),
+                         np.percentile(samples[keys[i]],(50)),
+                         np.percentile(samples[keys[i]],(84))]))
+        
+    # posterior table colnames
+    tab_colnames = []
+    post_ext = ['_16', '_50', '_84']
+    [[tab_colnames.append(tab_col_i.replace(':','_') + post_ext_i) for post_ext_i in post_ext] for tab_col_i in np.array(tab)[:,0]]
 
-    return(tab_info)
+    # row values of table
+    tab_row_vals = []
+    [[tab_row_vals.append(float(val_j)) for val_j in tab_row_i[1:4]] for tab_row_i in np.array(tab)]
+
+    # making an astropy Table
+    post_tab = Table(np.array(tab_row_vals), names=tab_colnames)
+
+    # saving posterior to csv table
+    tabpath = "pipes/cats/" + fname_spec + '_posterior_quants.csv'
+    post_tab.write(tabpath, format='csv', overwrite=True)
+
+    return None
