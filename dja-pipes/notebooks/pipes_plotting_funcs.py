@@ -3,12 +3,18 @@
 # ------- LIBRARIES ------ #
 import numpy as np
 from astropy.cosmology import Planck13 as cosmo
-from astropy.table import Table
+from astropy.table import Table, hstack
 from grizli.utils import get_line_wavelengths
 from grizli.utils import figure_timestamp
 from pipes_fitting_funcs import convert_cgs2mujy
 from pipes_fitting_funcs import convert_mujy2cgs
+from pipes_fitting_funcs import updated_filt_list
+from pipes_fitting_funcs import guess_calib
 from db_pull_funcs import pull_zspec_from_db
+import corner
+import bagpipes as pipes
+import copy
+import os
 
 # ------- PLOTTING & FORMATTING ------- #
 import matplotlib.pyplot as plt
@@ -63,7 +69,7 @@ def calc_eff_wavs(filt_list):
 # --------------------------------------------------------------
 # ---------------------- PLOT SPECTROSCOPIC AND PHOTOMETRIC DATA
 # --------------------------------------------------------------
-def plot_spec_phot_data(fname_spec, fname_phot, f_lam=False, show=False, save=False, run='.'):
+def plot_spec_phot_data(fname_spec, fname_phot, z_spec, f_lam=False, show=False, save=False, run='.'):
     """
     Plots spectrum and photometry of given source
     
@@ -71,6 +77,7 @@ def plot_spec_phot_data(fname_spec, fname_phot, f_lam=False, show=False, save=Fa
     ----------
     fname_spec : filename of spectrum e.g. 'rubies-uds3-v3_prism-clear_4233_62812.spec.fits', format=str
     fname_phot : filename of photometry e.g. 'rubies-uds3-v3_prism-clear_4233_62812.phot.cat', format=str
+    z_spec : spectroscopic redshift, format=float
     f_lam : if True, output plot is in f_lambda, if False, in f_nu, format=bool
     show : specifies wherether or not to display the image, format=bool
     save : specifies wherether or not to save the image, format=bool
@@ -80,9 +87,6 @@ def plot_spec_phot_data(fname_spec, fname_phot, f_lam=False, show=False, save=Fa
     -------
     None
     """
-
-    # spectroscopic redshift
-    z_spec = float(pull_zspec_from_db(fname_spec))
     
     # spectrum
     spec_tab = Table.read(f'files/{fname_spec}', hdu=1)
@@ -123,6 +127,8 @@ def plot_spec_phot_data(fname_spec, fname_phot, f_lam=False, show=False, save=Fa
 
     fig,ax = plt.subplots(figsize=(10,4.5))
 
+    ymin_plot, ymax_plot = -0.1*np.max(spec_fluxes), 1.1*np.max(spec_fluxes)
+
     ##################################
     # ------------ DATA ------------ #
     ##################################
@@ -146,8 +152,9 @@ def plot_spec_phot_data(fname_spec, fname_phot, f_lam=False, show=False, save=Fa
     for i, line in enumerate(line_names):
         if (((np.array(line_wavelengths[line]))*(1+z_spec)/10000)<(spec_wavs.max())).all() and (((np.array(line_wavelengths[line]))*(1+z_spec)/10000)>(spec_wavs.min())).all():
             ax.vlines((np.array(line_wavelengths[line]))*(1+z_spec)/10000,
-                    np.min(spec_fluxes), np.max(spec_fluxes),
-                    color='slategrey', ls='--', lw=1, alpha=0.5)
+                      ymin_plot, ymax_plot,
+                    #   np.min(spec_fluxes), np.max(spec_fluxes),
+                      color='slategrey', ls='--', lw=1, alpha=0.5)
             ax.text((np.array(line_wavelengths[line][-1]))*(1+z_spec)/10000 - 800/10000,
                     np.max(spec_fluxes)-0.15*np.max(spec_fluxes),
                     line, rotation=90, color='slategrey', alpha=0.5)
@@ -157,12 +164,13 @@ def plot_spec_phot_data(fname_spec, fname_phot, f_lam=False, show=False, save=Fa
     # --------- FORMATTING --------- #
     ##################################
     
-    ax.set_xlabel('Wavelength [$\mathrm{\mu m}$]')
+    ax.set_xlabel('$\mathrm{Wavelength\\ [\mu m]}$')
     ax.set_ylabel('${\\rm \mathrm{f_{\\nu}}\\ [\\mu Jy]}$')
     if f_lam:
         ax.set_ylabel('${\\rm \mathrm{f_{\\lambda}}\\ [erg\ s^{-1} cm^{-2} \AA^{-1}]}$')
 
     ax.set_xlim(np.min(spec_wavs), np.max(spec_wavs))
+    ax.set_ylim(ymin_plot, ymax_plot)
     
     # ax.legend(loc='upper left')
     fname = fname_spec.split('.spec')[0]
@@ -186,13 +194,14 @@ def plot_spec_phot_data(fname_spec, fname_phot, f_lam=False, show=False, save=Fa
     if show:
         plt.show()
         plt.close(fig)
-    
+
+    return fig    
 
 
 # --------------------------------------------------------------
 # ----------------------------------- PLOT FITTED SPECTRAL MODEL
 # --------------------------------------------------------------
-def plot_fitted_spectrum(fit, fname_spec, f_lam=False, show=False, save=False):
+def plot_fitted_spectrum(fit, fname_spec, z_spec, f_lam=False, show=False, save=False):
     """
     Plots fitted BAGPIPES spectral model, observed spectrum and observed photometry of given source
     
@@ -200,6 +209,7 @@ def plot_fitted_spectrum(fit, fname_spec, f_lam=False, show=False, save=False):
     ----------
     fit : fit object from BAGPIPES (where fit = pipes.fit(galaxy, fit_instructions))
     fname_spec : filename of spectrum e.g. 'rubies-uds3-v3_prism-clear_4233_62812.spec.fits', format=str
+    z_spec : spectroscopic redshift, format=float
     f_lam : if True, output plot is in f_lambda, if False, in f_nu, format=bool
     show : specifies wherether or not to display the image, format=bool
     save : specifies wherether or not to save the image, format=bool
@@ -208,9 +218,6 @@ def plot_fitted_spectrum(fit, fname_spec, f_lam=False, show=False, save=False):
     -------
     None
     """
-
-    # spectroscopic redshift
-    z_spec = pull_zspec_from_db(fname_spec)
 
     fit.posterior.get_advanced_quantities()
 
@@ -268,6 +275,8 @@ def plot_fitted_spectrum(fit, fname_spec, f_lam=False, show=False, save=False):
     
     # plotting spectrum
     fig,ax = plt.subplots(figsize=(10,4.5))
+
+    ymin_plot, ymax_plot = -0.1*np.max(spec_fluxes), 1.1*np.max(spec_fluxes)
     
     ##################################
     # ------------ DATA ------------ #
@@ -275,7 +284,7 @@ def plot_fitted_spectrum(fit, fname_spec, f_lam=False, show=False, save=False):
     
     # ---------- SPECTRUM ---------- #
     ax.plot(wavs, spec_fluxes,
-            zorder=-1, color='slategrey', alpha=0.7, lw=1, label='spectrum (scaled)')
+            zorder=-1, color='slategrey', alpha=0.7, lw=1, label='Spectrum (scaled)')
     ax.fill_between(wavs,
                     spec_fluxes-spec_efluxes,
                     spec_fluxes+spec_efluxes,
@@ -284,7 +293,7 @@ def plot_fitted_spectrum(fit, fname_spec, f_lam=False, show=False, save=False):
     # ---------- PHOTOMETRY ---------- #
     ax.errorbar(phot_wavs, phot_fluxes, yerr=phot_efluxes,
                 fmt='o', ms=8, color='gainsboro', markeredgecolor='k', ecolor='grey', elinewidth=0.5, markeredgewidth=1.,
-                zorder=1, alpha=1., label='photometry')
+                zorder=1, alpha=1., label='Photometry')
     
     ##################################
     # -------- FITTED MODEL -------- #
@@ -292,15 +301,15 @@ def plot_fitted_spectrum(fit, fname_spec, f_lam=False, show=False, save=False):
     
     # ---------- SPECTRUM ---------- #
     ax.plot(wavs, spec_fluxes_model,
-            zorder=-1, color='forestgreen', alpha=0.7, lw=1.5, label='model spectrum (scaled)')
+            zorder=-1, color='forestgreen', alpha=0.7, lw=1.5, label='Model spectrum')
     ax.fill_between(wavs,
                     spec_fluxes_model_lo, spec_fluxes_model_hi,
                     zorder=-1, color='forestgreen', alpha=0.1)
     
     # ---------- PHOTOMETRY ---------- #
-    ax.errorbar(phot_wavs, phot_fluxes_model, #yerr=[phot_fluxes_model_lo, phot_fluxes_model_hi],
-                fmt='o', ms=8, color='cornflowerblue', markeredgecolor='cornflowerblue', ecolor='grey', elinewidth=0.5, markeredgewidth=1.,
-                zorder=1, alpha=0.9, label='model photometry')
+    ax.errorbar(phot_wavs, phot_fluxes_model, yerr=[phot_fluxes_model-phot_fluxes_model_lo, phot_fluxes_model_hi-phot_fluxes_model],
+                fmt='o', ms=7, color='forestgreen', markeredgecolor='k', ecolor='grey', elinewidth=0.5, markeredgewidth=.5,
+                zorder=1, alpha=1., label='Model photometry')
 
     ##################################
     # ------- EMISSION LINES ------- #
@@ -313,8 +322,9 @@ def plot_fitted_spectrum(fit, fname_spec, f_lam=False, show=False, save=False):
     for i, line in enumerate(line_names):
         if (((np.array(line_wavelengths[line]))*(1+z_spec)/10000)<(wavs.max())).all() and (((np.array(line_wavelengths[line]))*(1+z_spec)/10000)>(wavs.min())).all():
             ax.vlines((np.array(line_wavelengths[line]))*(1+z_spec)/10000,
-                    np.min(spec_fluxes), np.max(spec_fluxes),
-                    color='slategrey', ls='--', lw=1, alpha=0.5)
+                       ymin_plot, ymax_plot,
+                    #   np.min(spec_fluxes), np.max(spec_fluxes),
+                      color='slategrey', ls='--', lw=1, alpha=0.5)
             ax.text((np.array(line_wavelengths[line][-1]))*(1+z_spec)/10000 - 800/10000,
                     np.max(spec_fluxes)-0.15*np.max(spec_fluxes),
                     line, rotation=90, color='slategrey', alpha=0.5)
@@ -323,10 +333,12 @@ def plot_fitted_spectrum(fit, fname_spec, f_lam=False, show=False, save=False):
     # --------- FORMATTING --------- #
     ##################################
     
-    ax.set_xlabel('Wavelength [$\mathrm{\mu m}$]')
+    ax.set_xlabel('$\mathrm{Wavelength\\ [\mu m]}$')
     ax.set_ylabel('${\\rm \mathrm{f_{\\lambda}}\\ [erg\ s^{-1} cm^{-2} \AA^{-1}]}$')
     if not f_lam:
         ax.set_ylabel('${\\rm \mathrm{f_{\\nu}}\\ [\\mu Jy]}$')
+
+    ax.set_ylim(ymin_plot, ymax_plot)
     
     ax.legend(loc='upper left', framealpha=0.5)
 
@@ -346,12 +358,13 @@ def plot_fitted_spectrum(fit, fname_spec, f_lam=False, show=False, save=False):
         plt.show()
         plt.close(fig)
 
+    return fig
 
 
 # --------------------------------------------------------------
 # ---------------------------------- PLOT STAR-FORMATION HISTORY
 # --------------------------------------------------------------
-def plot_fitted_sfh(fit, fname_spec, show=False, save=False):
+def plot_fitted_sfh(fit, fname_spec, z_spec, show=False, save=False):
     """
     Plots star-formation history from fitted BAGPIPES model
     
@@ -359,6 +372,7 @@ def plot_fitted_sfh(fit, fname_spec, show=False, save=False):
     ----------
     fit : fit object from BAGPIPES (where fit = pipes.fit(galaxy, fit_instructions))
     fname_spec : filename of spectrum e.g. 'rubies-uds3-v3_prism-clear_4233_62812.spec.fits', format=str
+    z_spec : spectroscopic redshift, format=float
     show : specifies wherether or not to display the image, format=bool
     save : specifies wherether or not to save the image, format=bool
 
@@ -366,9 +380,6 @@ def plot_fitted_sfh(fit, fname_spec, show=False, save=False):
     -------
     None
     """
-
-    # spectroscopic redshift
-    z_spec = pull_zspec_from_db(fname_spec)
     
     fit.posterior.get_advanced_quantities()
     
@@ -396,7 +407,8 @@ def plot_fitted_sfh(fit, fname_spec, show=False, save=False):
     post = np.percentile(fit.posterior.samples["sfh"], (16, 50, 84), axis=0).T
 
     # Plot the SFH
-    x = age_of_universe - fit.posterior.sfh.ages*10**-9
+    # x = age_of_universe - fit.posterior.sfh.ages*10**-9
+    x = fit.posterior.sfh.ages*10**-9
 
     fig,ax = plt.subplots(figsize=(10,4.5))
 
@@ -404,12 +416,16 @@ def plot_fitted_sfh(fit, fname_spec, show=False, save=False):
     ax.fill_between(x, post[:, 0], post[:, 2], color=color2,
                     alpha=alpha, zorder=zorder, lw=0, label=label)
 
-    ax.set_ylim(0., np.max([ax.get_ylim()[1], 1.1*np.max(post[:, 2])]))
-    ax.set_xlim(age_of_universe, 0)
+    # ax.set_ylim(0., np.max([ax.get_ylim()[1], 1.1*np.max(post[:, 2])]))
+    # ax.set_xlim(age_of_universe, 0)
+    ax.set_xlim(0, age_of_universe)
 
     # Set axis labels
     ax.set_ylabel("${\\rm SFR \ [ M_\\odot yr^{-1}]}$")
-    ax.set_xlabel("Age of Universe [Gyr]")
+    # ax.set_xlabel("Age of Universe [Gyr]")
+    ax.set_xlabel("${\\rm Lookback\\ time\\ [Gyr]}$")
+
+    ax.set_yscale("log")
 
     fname = fname_spec.split('.spec')[0]
     ax.set_title(fname+'\nz='+str(np.round(z_spec,4)), loc='right')
@@ -427,11 +443,177 @@ def plot_fitted_sfh(fit, fname_spec, show=False, save=False):
         plt.show()
         plt.close(fig)
 
+    return fig
+
+
+
+# --------------------------------------------------------------
+# ---------------------------------------- POSTERIOR CORNER PLOT
+# --------------------------------------------------------------
+
+def plot_corner(fit, fname_spec, z_spec, fit_instructions, filt_list, show=False, save=False, bins=25):
+    """
+    Makes corner plot of the fitted parameters
+    
+    Parameters
+    ----------
+    fit : fit object from BAGPIPES (where fit = pipes.fit(galaxy, fit_instructions))
+    fname_spec : filename of spectrum e.g. 'rubies-uds3-v3_prism-clear_4233_62812.spec.fits', format=str
+    z_spec : spectroscopic redshift, format=float
+    fit_instructions : dictionary of bagpipes input parameters
+    filt_list : array of paths to filter files, each element is a string, format=numpy array
+    show : specifies wherether or not to display the image, format=bool
+    save : specifies wherether or not to save the image, format=bool
+
+    Returns
+    -------
+    None
+    """
+
+    names = fit.fitted_model.params
+    samples = np.copy(fit.posterior.samples2d)
+
+    # Set up axis labels
+    # labels = fit.fitted_model.params.copy()
+    labels = pipes.plotting.general.fix_param_names(names)
+
+    # Log any parameters with log_10 priors to make them easier to see
+    for i in range(fit.fitted_model.ndim):
+        if fit.fitted_model.pdfs[i] == "log_10":
+            samples[:, i] = np.log10(samples[:, i])
+
+            labels[i] = "log_10(" + labels[i] + ")"
+
+    # Replace any r parameters for Dirichlet distributions with t_x vals
+    j = 0
+    for i in range(fit.fitted_model.ndim):
+        if "dirichlet" in fit.fitted_model.params[i]:
+            comp = fit.fitted_model.params[i].split(":")[0]
+            n_x = fit.fitted_model.model_components[comp]["bins"]
+            t_percentile = int(np.round(100*(j+1)/n_x))
+
+            samples[:, i] = fit.posterior.samples[comp + ":tx"][:, j]
+            j += 1
+
+            labels[i] = "t" + str(t_percentile) + " / Gyr"
+
+    # Make the corner plot
+    fig = corner.corner(samples, bins=bins, labels=labels,
+                        quantiles=[0.16, 0.5, 0.84],
+                        show_titles=True, smooth=1., title_kwargs={"fontsize": 13},
+                        hist_kwargs={"density": True, "color": "skyblue", "edgecolor": "forestgreen", "lw": 2})
+                        #smooth1d=1.)
+    
+    # overplot priors
+    fit_instructions_temp = copy.deepcopy(fit_instructions)
+    del fit_instructions_temp['R_curve']
+    priors = pipes.fitting.check_priors(fit_instructions=fit_instructions_temp, filt_list=filt_list, n_draws=5000)
+    priors.get_advanced_quantities()
+
+    # Access the axes of the figure for additional customization
+    axes = fig.get_axes()
+    
+    # loop of each histogram
+    for i in range(len(names)):
+        ax = axes[i * (len(names) + 1)]  # spacing of diagonal axes
+        ax.hist(priors.samples[names[i]],
+                bins=bins, density=True,
+                histtype='step', ls='-', lw=2, edgecolor="grey", zorder=-1)
+        
+
+    # fname = fname_spec.split('.spec')[0]
+    # plt.title(fname+'\nz='+str(np.round(z_spec,4)), loc='right')
+
+    # figure_timestamp(fig, fontsize=8, ha='right', va='top')
+
+    plt.tight_layout()
+
+    if save:
+        fname = fname_spec.split('.spec')[0]
+        plotpath = "pipes/plots/" + fit.run + "/" + fname + '_corner.pdf'
+        plt.savefig(plotpath, transparent=True)
+        plt.close(fig)
+
+    if show:
+        plt.show()
+        plt.close(fig)
+
+    return fig
+
+
+
+# --------------------------------------------------------------
+# --------------------------------------------- CALIBRATION PLOT
+# --------------------------------------------------------------
+
+def plot_calib(fit, fname_spec, z_spec, show=False, save=False):
+    """
+    Makes plot of the calibration curve
+    
+    Parameters
+    ----------
+    fit : fit object from BAGPIPES (where fit = pipes.fit(galaxy, fit_instructions))
+    fname_spec : filename of spectrum e.g. 'rubies-uds3-v3_prism-clear_4233_62812.spec.fits', format=str
+    z_spec : spectroscopic redshift, format=float
+    show : specifies wherether or not to display the image, format=bool
+    save : specifies wherether or not to save the image, format=bool
+
+    Returns
+    -------
+    None
+    """
+
+    fig = plt.figure(figsize=(10,4.5))
+    ax = plt.subplot()
+
+    ID = int(fit.galaxy.ID)
+    _, _, _ = guess_calib(ID, z_spec, plot=True)
+
+    fit.posterior.get_advanced_quantities()
+
+    wavs = fit.galaxy.spectrum[:, 0]
+    samples = fit.posterior.samples["calib"]
+    post = np.percentile(samples, (16, 50, 84), axis=0).T
+
+    ax.plot(wavs/10000, post[:, 0], color="forestgreen", zorder=10, lw=0.1)
+    ax.plot(wavs/10000, post[:, 1], color="forestgreen", zorder=10, label='Posterior calib curve')
+    ax.plot(wavs/10000, post[:, 2], color="forestgreen", zorder=10, lw=0.1)
+    ax.fill_between(wavs/10000, post[:, 0], post[:, 2], lw=0,
+                    color="forestgreen", alpha=0.3, zorder=9)
+
+    ax.set_xlim(wavs[0]/10000, wavs[-1]/10000)
+
+    ax.set_xlabel("$\\mathrm{Wavelength\\ [\\mu m]}$")
+    ax.set_ylabel("$\\mathrm{Spectrum\\ multiplied\\ by}$")
+
+    plt.legend(loc='upper right')
+
+    fname = fname_spec.split('.spec')[0]
+    ax.set_title(fname+'\nz='+str(np.round(z_spec,4)), loc='right')
+
+    figure_timestamp(fig, fontsize=8)
+
+    plt.tight_layout()
+
+    if save:
+        fname = fname_spec.split('.spec')[0]
+        plotpath = "pipes/plots/" + fit.run + "/" + fname + '_calib.pdf'
+        plt.savefig(plotpath, transparent=True)
+        plt.close(fig)
+
+    if show:
+        plt.show()
+        plt.close(fig)
+
+    return fig
+
+
+
 
 # --------------------------------------------------------------
 # -------------------------------- TABLE OF POSTERIOR PROPERTIES
 # --------------------------------------------------------------
-def get_posterior_sample_dists(fit, fname_spec, save=False):
+def save_posterior_sample_dists(fit, fname_spec, save=False):
     """
     Makes table of 16th, 50th, and 84th percentile values of all posterior quantities from BAGPIPES fit, saves table to csv file
     
@@ -443,22 +625,24 @@ def get_posterior_sample_dists(fit, fname_spec, save=False):
 
     Returns
     -------
-    tab_info : list with dimensions n*4 (where n is number of posterior quantities)
+    None
     """
 
     fit.posterior.get_advanced_quantities()
 
     samples = fit.posterior.samples
     keys = list(samples.keys())
+    to_remove = ['photometry', 'spectrum', 'spectrum_full', 'dust_curve', 'calib', 'uvj']
+    keys_mod = [key for key in keys if key not in to_remove]
 
     tab = []
 
-    for i in range(len(keys)):
+    for i in range(len(keys_mod)):
     
-        tab.append(list([keys[i],
-                         np.percentile(samples[keys[i]],(16)),
-                         np.percentile(samples[keys[i]],(50)),
-                         np.percentile(samples[keys[i]],(84))]))
+        tab.append(list([keys_mod[i],
+                         np.percentile(samples[keys_mod[i]],(16)),
+                         np.percentile(samples[keys_mod[i]],(50)),
+                         np.percentile(samples[keys_mod[i]],(84))]))
         
     # posterior table colnames
     tab_colnames = []
@@ -470,10 +654,76 @@ def get_posterior_sample_dists(fit, fname_spec, save=False):
     [[tab_row_vals.append(float(val_j)) for val_j in tab_row_i[1:4]] for tab_row_i in np.array(tab)]
 
     # making an astropy Table
-    post_tab = Table(np.array(tab_row_vals), names=tab_colnames)
+    post_tab_temp = Table(np.array(tab_row_vals), names=tab_colnames)
 
-    # saving posterior to csv table
-    tabpath = "pipes/cats/" + fname_spec + '_posterior_quants.csv'
-    post_tab.write(tabpath, format='csv', overwrite=True)
+    ### add UVJ to post  tab ###
+    post_uvj = np.percentile(fit.posterior.samples["uvj"], (16, 50, 84), axis=0).T
+    to_add = 'restU', 'restV', 'restJ'
+    to_add_full = [to_add_j + post_ext_i for to_add_j in to_add for post_ext_i in post_ext]
+    post_tab_add = Table(post_uvj.flatten(), names=to_add_full)
+
+    # hstack tables
+    post_tab = hstack([post_tab_temp,post_tab_add])
+
+    ### saving posterior to csv table ###
+    fname = fname_spec.split('.spec')[0]
+    fname_phot = fname + '.phot.cat'
+
+    phot_colnames = ['file_spec', 'file_phot', 'file_zout', 'id_phot', 'dr']
+    phot_cols = Table.read(f'files/{fname_phot}', format='ascii.commented_header')[phot_colnames]
+
+    # number of photometric filters
+    id = int(fit.galaxy.ID)
+    filt_list = updated_filt_list(id) # list of valid filters
+    filt_num = len(filt_list)
+
+    phot_cols.add_columns([filt_num], indexes=[-1], names=['filt_num'])
+
+    tab_stacked = hstack([phot_cols, post_tab])
+
+    if not os.path.exists("./pipes/cats/" + fit.run):
+        os.mkdir("./pipes/cats/" + fit.run)
+
+    tabpath = "pipes/cats/" + fit.run + "/" + fname + '_postcat.csv'
+    tab_stacked.write(tabpath, format='csv', overwrite=True)
+
+    return None
+
+
+
+# --------------------------------------------------------------
+# -------------------------------------- CALIBRATION CURVE TABLE
+# --------------------------------------------------------------
+def save_calib(fit, fname_spec, save=False):
+    """
+    Makes table of 16th, 50th, and 84th percentile values of calibratoion curve from BAGPIPES fit, saves table to csv file
+    
+    Parameters
+    ----------
+    fit : fit object from BAGPIPES (where fit = pipes.fit(galaxy, fit_instructions))
+    fname_spec : filename of spectrum e.g. 'rubies-uds3-v3_prism-clear_4233_62812.spec.fits', format=str
+    save : specifies wherether or not to save the table, format=bool
+
+    Returns
+    -------
+    None
+    """
+
+    fit.posterior.get_advanced_quantities()
+
+    wavs = fit.galaxy.spectrum[:, 0]
+    samples = fit.posterior.samples["calib"]
+    post = np.percentile(samples, (16, 50, 84), axis=0).T
+
+    tab = Table([wavs, post[:,0], post[:,1], post[:,2]], names=['wavs', 'calib_16', 'calib_50', 'calib_84'], units=['Angstrom', '', '', ''])
+
+    ### saving posterior to csv table ###
+    fname = fname_spec.split('.spec')[0]
+
+    if not os.path.exists("./pipes/cats/" + fit.run):
+        os.mkdir("./pipes/cats/" + fit.run)
+
+    tabpath = "pipes/cats/" + fit.run + "/" + fname + '_calibcurve.csv'
+    tab.write(tabpath, format='csv', overwrite=True)
 
     return None

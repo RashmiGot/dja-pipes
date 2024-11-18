@@ -1,8 +1,12 @@
 # ------- LIBRARIES ------ #
 from astropy.table import Table
 import numpy as np
+import grizli.utils as utils
+import eazy
+import msaexp.spectrum 
+# from msaexp import spectrum
 
-
+import matplotlib.pyplot as plt
 
 # --------------------------------------------------------------
 # ------------------------- EFFECTIVE WAVELENGTH OF PHOT FILTERS
@@ -85,6 +89,182 @@ def convert_cgs2mujy(flamObs_cgs,lamObs_A):
 
 
 # --------------------------------------------------------------
+# -------------------------------------------------- FILTER LIST
+# --------------------------------------------------------------
+def updated_filt_list(ID):
+    """
+    Updates filterlist
+    
+    Parameters
+    ----------
+    ID : number assigned to fitting run, format=int
+
+    Returns
+    -------
+    filt_list[phot_flux_mask] : masked filter list, format=numpy array
+    """
+
+    id = int(ID)
+
+    speclist_cat = Table.read('spec_cat_temp.fits', format='fits')
+
+    fname_phot_out = speclist_cat[speclist_cat["id"]==id]["fname"][0]+'.phot.cat'
+    phot_tab = Table.read(f'files/{fname_phot_out}', format='ascii.commented_header')
+
+    # jwst filter list
+    filt_list = np.loadtxt("../filters/filt_list.txt", dtype="str")
+
+    # extract fluxes from cat (muJy); '{filter}_tot_1'==0.5'' aperture
+    flux_colNames = [filt_list_i.split('/')[-1].split('.')[0]+'_tot_1' for filt_list_i in filt_list]
+    eflux_colNames = [filt_list_i.split('/')[-1].split('.')[0]+'_etot_1' for filt_list_i in filt_list]
+
+    fluxes_muJy = np.lib.recfunctions.structured_to_unstructured(np.array(phot_tab[list(flux_colNames)]))[0]
+    efluxes_muJy = np.lib.recfunctions.structured_to_unstructured(np.array(phot_tab[list(eflux_colNames)]))[0]
+
+    phot_flux_mask = (fluxes_muJy>-90) & (efluxes_muJy>0)
+
+    return filt_list[phot_flux_mask]
+
+
+
+
+# --------------------------------------------------------------
+# ------------------------------- CALCULATE SYNTHETIC PHOTOMETRY
+# --------------------------------------------------------------
+def synthetic_photometry(filt_list, spectrum):
+    """
+    Calculates synthetic photometry for a spectrum for given filters
+    
+    Parameters
+    ----------
+    filt_list : array of paths to filter files, each element is a string, format=numpy array
+    spectrum : spectrum array containing spectral wavelengths, fluxes and uncertainties, format=numpy array
+
+    Returns
+    -------
+    syn_phot : synthetic photometry, format=numpy array
+    """
+
+    eff_wavs = calc_eff_wavs(filt_list=filt_list) # effective wavelengths
+
+    syn_phot = np.zeros_like(eff_wavs) # initialise array for synthetic photometry
+    
+    for i in range(len(filt_list)):
+        filt_i = np.loadtxt(filt_list[i], usecols=(0, 1)) # load filter profile
+        spec_wav_mask = (spectrum[:,0] > filt_i[:,0].min()) & (spectrum[:,0] < filt_i[:,0].max()) # mask for spectrum in filter wav range
+        spectrum_masked = spectrum[spec_wav_mask] # masked spectrum
+        filt_i_interp = np.interp(spectrum_masked[:,0], filt_i[:,0], filt_i[:,1]) # interpolating filter profile onto spec wavs
+        filt_int = np.trapz(filt_i[:,1], filt_i[:,0]) # integral of filter
+        syn_phot[i] = np.trapz(spectrum_masked[:,1]*filt_i_interp/filt_int, spectrum_masked[:,0]) # synthetic photometry from spectrum
+
+    return syn_phot
+
+
+# --------------------------------------------------------------
+# ------------------------------- CALCULATE SYNTHETIC PHOTOMETRY
+# --------------------------------------------------------------
+def synthetic_photometry_msa(z, filt_list, spec_tab):
+    """
+    Calculates synthetic photometry for a spectrum for given filters with msaexp
+    
+    Parameters
+    ----------
+    z : redshift, format=float
+    filt_list : array of paths to filter files, each element is a string, format=numpy array
+    spectrum : spectrum array containing spectral wavelengths, fluxes and uncertainties, format=numpy array
+
+    Returns
+    -------
+    syn_phot : synthetic photometry, format=numpy array
+    """
+
+    spec_tab = Table([spec_tab[:,0]/10000, spec_tab[:,1], spec_tab[:,2]], names=['wave', 'flux', 'err'])
+
+    syn_phot = np.zeros(len(filt_list)) # initialise array for synthetic photometry
+    syn_phot_err = np.zeros(len(filt_list)) # initialise array for synthetic photometry errors
+    
+    for i in range(len(syn_phot)):
+        filt_tab_i = Table.read(filt_list[i], format='ascii')
+        eazy_filt = eazy.filters.FilterDefinition(wave=filt_tab_i["col1"]/(1+z), throughput=filt_tab_i["col2"])
+
+        syn_phot_tab = msaexp.spectrum.integrate_spectrum_filter(spec_tab, eazy_filt, z=z)
+
+        syn_phot[i], syn_phot_err[i] = syn_phot_tab[2], syn_phot_tab[3]
+
+    return syn_phot, syn_phot_err
+
+
+
+# --------------------------------------------------------------
+# -------------------------------------------- CALIB PRIOR GUESS
+# --------------------------------------------------------------
+def guess_calib(ID, z, plot=False):
+    """
+    Estimates calibration function to inform the calib prior in the pipes fitting routine
+    
+    Parameters
+    ----------
+    ID : number assigned to fitting run, format=int
+    plot : plots calibration curve, format=bool
+
+    Returns
+    -------
+    coeffs : coefficients of the calibration polynomial, format=numpy array
+    """
+
+    id = int(ID)
+
+    # filter list 
+    filt_list = updated_filt_list(id) # filt list
+    eff_wavs = calc_eff_wavs(filt_list=filt_list) # effective wavelengths
+    spec_fluxes, phot_fluxes = load_both(id) # spec and phot fluxes
+    syn_phot, syn_phot_err = synthetic_photometry_msa(z=z, filt_list=filt_list, spec_tab=spec_fluxes) # synthetic photometry
+
+    y = phot_fluxes[:,0] / syn_phot # ratio of real to synthetic photometry
+    yerr = np.abs(y * np.sqrt((phot_fluxes[:,1] / phot_fluxes[:,0])**2 + (syn_phot_err / syn_phot)**2)) # error on ratio of real to synthetic photometry
+
+    # transforming spec axis such that it runs from -1 to 1
+    xfull = spec_fluxes[:, 0]
+    xfull_trans = 2.*(xfull - (xfull[0] + (xfull[-1] - xfull[0])/2.))/(xfull[-1] - xfull[0])
+    x_trans = np.interp(eff_wavs, spec_fluxes[:, 0], xfull_trans)
+
+    # "design matrix"
+    A = np.polynomial.chebyshev.chebvander(x_trans, 2)
+    Afull = np.polynomial.chebyshev.chebvander(xfull_trans, 2)
+    lsq_coeffs = np.linalg.lstsq((A.T/yerr).T, y/yerr, rcond=None)
+
+    # design matrix with weights
+    Ax = (A.T/yerr).T
+
+    # covariance matrix
+    covar = utils.safe_invert(np.dot(Ax.T, Ax))
+    param_uncertainties = np.sqrt(covar.diagonal())
+
+    if plot:
+        cfit = np.polynomial.chebyshev.chebfit(x_trans, y, deg=2, w=1./yerr)
+
+        random_coeffs = np.random.multivariate_normal(lsq_coeffs[0], covar, size=100)
+        random_models = Afull.dot(random_coeffs.T)
+
+        # print(np.percentile(random_models, (16, 50, 84), axis=0))
+
+        post = np.percentile(random_models.T, (16, 50, 84), axis=0).T
+
+        plt.plot(spec_fluxes[:, 0]/10000, post[:, 0], color="grey", zorder=10, lw=0.1)
+        plt.plot(spec_fluxes[:, 0]/10000, post[:, 1], color="grey", zorder=10, label='Prior calib guess')
+        plt.plot(spec_fluxes[:, 0]/10000, post[:, 2], color="grey", zorder=10, lw=0.1)
+        plt.fill_between(spec_fluxes[:, 0]/10000, post[:, 0], post[:, 2], lw=0,
+                        color="grey", alpha=0.3, zorder=9)
+
+        # plt.errorbar(eff_wavs/10000, y, yerr, linestyle='None', marker='.', color='grey')
+        # plt.plot(spec_fluxes[:, 0]/10000, np.polynomial.chebyshev.chebval(xfull_trans, lsq_coeffs[0]), color='grey', lw=1.5,
+        #          label='Prior calib guess')
+        # plt.plot(spec_fluxes[:, 0]/10000, random_models, color='grey', alpha=0.05)
+
+    return lsq_coeffs[0], param_uncertainties, covar
+
+
+# --------------------------------------------------------------
 # ---------------------------------------------- LOAD PHOTOMETRY
 # --------------------------------------------------------------
 def load_phot(ID):
@@ -104,7 +284,7 @@ def load_phot(ID):
 
     speclist_cat = Table.read('spec_cat_temp.fits', format='fits')
 
-    fname_phot_out = speclist_cat[speclist_cat["id"]==id]["fname"][0]+'.phot.cat'#'file_for_pipes.phot.cat'
+    fname_phot_out = speclist_cat[speclist_cat["id"]==id]["fname"][0]+'.phot.cat'
     phot_tab = Table.read(f'files/{fname_phot_out}', format='ascii.commented_header')
 
     # jwst filter list
@@ -114,7 +294,14 @@ def load_phot(ID):
     flux_colNames = [filt_list_i.split('/')[-1].split('.')[0]+'_tot_1' for filt_list_i in filt_list]
     eflux_colNames = [filt_list_i.split('/')[-1].split('.')[0]+'_etot_1' for filt_list_i in filt_list]
 
-    fluxes_muJy = np.lib.recfunctions.structured_to_unstructured(np.array(phot_tab[list(flux_colNames)]))[0]
+    # zeropoints table
+    zpoints = Table.read('zeropoints.csv', format='csv')
+    zpoints_sub = zpoints[zpoints["root"]==phot_tab["file_phot"][0].split('_phot')[0]]
+    zp_array = [zpoints_sub[zpoints_sub["f_name"]==flux_colName]["zp"][0] for flux_colName in flux_colNames]
+
+    # make flux arrays and correct for zeropoints
+    fluxes_muJy_no_zp = np.lib.recfunctions.structured_to_unstructured(np.array(phot_tab[list(flux_colNames)]))[0]
+    fluxes_muJy = fluxes_muJy_no_zp * zp_array
     efluxes_muJy = np.lib.recfunctions.structured_to_unstructured(np.array(phot_tab[list(eflux_colNames)]))[0]
 
     phot_flux_mask = (fluxes_muJy>-90) & (efluxes_muJy>0)
@@ -209,6 +396,7 @@ def load_spec(ID):
     spec_wavs = np.array(spec_tab['wave'])*1e4 # convert wavs to angstrom
 
     spec_wavs_mask = (spec_wavs>7836) & (spec_wavs<50994) # wavs within photometric filter limits
+    # spec_wavs_mask = (spec_wavs>spec_wavs.min()) & (spec_wavs<spec_wavs.max()) # wavs within photometric filter limits
     
     flux_muJy = np.array(spec_tab['flux'])
     fluxerr_muJy = np.array(spec_tab['err'])
