@@ -246,20 +246,14 @@ def guess_calib(ID, z, plot=False):
         random_coeffs = np.random.multivariate_normal(lsq_coeffs[0], covar, size=100)
         random_models = Afull.dot(random_coeffs.T)
 
-        # print(np.percentile(random_models, (16, 50, 84), axis=0))
-
         post = np.percentile(random_models.T, (16, 50, 84), axis=0).T
 
+        plt.errorbar(eff_wavs/10000, y, yerr=yerr, marker='o', color="grey", zorder=10, ls=' ', lw=0.8)
         plt.plot(spec_fluxes[:, 0]/10000, post[:, 0], color="grey", zorder=10, lw=0.1)
         plt.plot(spec_fluxes[:, 0]/10000, post[:, 1], color="grey", zorder=10, label='Prior calib guess')
         plt.plot(spec_fluxes[:, 0]/10000, post[:, 2], color="grey", zorder=10, lw=0.1)
         plt.fill_between(spec_fluxes[:, 0]/10000, post[:, 0], post[:, 2], lw=0,
                         color="grey", alpha=0.3, zorder=9)
-
-        # plt.errorbar(eff_wavs/10000, y, yerr, linestyle='None', marker='.', color='grey')
-        # plt.plot(spec_fluxes[:, 0]/10000, np.polynomial.chebyshev.chebval(xfull_trans, lsq_coeffs[0]), color='grey', lw=1.5,
-        #          label='Prior calib guess')
-        # plt.plot(spec_fluxes[:, 0]/10000, random_models, color='grey', alpha=0.05)
 
     return lsq_coeffs[0], param_uncertainties, covar
 
@@ -316,11 +310,6 @@ def load_phot(ID):
     
     # turn these into a 2D array
     photometry = np.c_[fluxes,efluxes][phot_flux_mask]
-
-    # # blow up the errors associated with any missing fluxes
-    # for i in range(len(photometry)):
-    #     if (photometry[i, 0] == 0.) or (photometry[i, 1] <= 0):
-    #         photometry[i,:] = [0., 9.9*10**99.]
             
     # enforce a maximum SNR of 20, or 10 in the IRAC channels
     for i in range(len(photometry)):
@@ -390,14 +379,17 @@ def load_spec(ID):
 
     speclist_cat = Table.read('spec_cat_temp.fits', format='fits')
 
-    fname_spec_out = speclist_cat[speclist_cat["id"]==id]["fname"][0]+'.spec.fits'#'file_for_pipes.spec.fits'
+    fname_spec_out = speclist_cat[speclist_cat["id"]==id]["fname"][0]+'.spec.fits'
     spec_tab = Table.read(f'files/{fname_spec_out}', hdu=1)
 
     spec_wavs = np.array(spec_tab['wave'])*1e4 # convert wavs to angstrom
 
-    spec_wavs_mask = (spec_wavs>7836) & (spec_wavs<50994) # wavs within photometric filter limits
-    # spec_wavs_mask = (spec_wavs>spec_wavs.min()) & (spec_wavs<spec_wavs.max()) # wavs within photometric filter limits
-    
+    filt_list = updated_filt_list(id) # filt list
+    wav_min, wav_max = Table.read(filt_list[0], format="ascii")[0][0], Table.read(filt_list[-1], format="ascii")[-1][0]
+
+    # spec_wavs_mask = (spec_wavs>7836) & (spec_wavs<50994) # wavs within photometric filter limits
+    spec_wavs_mask = (spec_wavs>wav_min) & (spec_wavs<wav_max)
+
     flux_muJy = np.array(spec_tab['flux'])
     fluxerr_muJy = np.array(spec_tab['err'])
     flux_cgs = convert_mujy2cgs(flux_muJy,spec_wavs)

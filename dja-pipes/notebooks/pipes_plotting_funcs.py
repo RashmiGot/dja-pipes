@@ -4,13 +4,12 @@
 import numpy as np
 from astropy.cosmology import Planck13 as cosmo
 from astropy.table import Table, hstack
-from grizli.utils import get_line_wavelengths
 from grizli.utils import figure_timestamp
+from grizli.utils import MPL_COLORS
 from pipes_fitting_funcs import convert_cgs2mujy
 from pipes_fitting_funcs import convert_mujy2cgs
 from pipes_fitting_funcs import updated_filt_list
 from pipes_fitting_funcs import guess_calib
-from db_pull_funcs import pull_zspec_from_db
 import corner
 import bagpipes as pipes
 import copy
@@ -65,11 +64,14 @@ def calc_eff_wavs(filt_list):
     return eff_wavs
 
 
+def prism_wav_xticks(xmin=1, xmax=5, dx=0.5):
+    return np.arange(xmin,xmax+dx,dx)
+
 
 # --------------------------------------------------------------
 # ---------------------- PLOT SPECTROSCOPIC AND PHOTOMETRIC DATA
 # --------------------------------------------------------------
-def plot_spec_phot_data(fname_spec, fname_phot, z_spec, f_lam=False, show=False, save=False, run='.'):
+def plot_spec_phot_data(fname_spec, fname_phot, z_spec, f_lam=False, show=False, save=False, run='.', plotlims=None):
     """
     Plots spectrum and photometry of given source
     
@@ -114,8 +116,7 @@ def plot_spec_phot_data(fname_spec, fname_phot, z_spec, f_lam=False, show=False,
     
     # effective wavelengths of photometric filters
     phot_wavs_temp = (calc_eff_wavs(filt_list) / 10000)
-    phot_wavs = np.array(phot_wavs_temp)[phot_flux_mask[0]]
-    
+    phot_wavs = np.array(phot_wavs_temp)[phot_flux_mask[0]]   
 
     # plotting spectrum
     if f_lam:
@@ -127,7 +128,13 @@ def plot_spec_phot_data(fname_spec, fname_phot, z_spec, f_lam=False, show=False,
 
     fig,ax = plt.subplots(figsize=(10,4.5))
 
-    ymin_plot, ymax_plot = -0.1*np.max(spec_fluxes), 1.1*np.max(spec_fluxes)
+    if plotlims==None:
+        xmin_plot, xmax_plot = np.min(spec_wavs), np.max(spec_wavs)
+        ymin_plot, ymax_plot = -0.1*np.max(spec_fluxes), 1.1*np.max(spec_fluxes)
+    elif plotlims!=None:
+        xmin_plot, xmax_plot, ymin_plot, ymax_plot = plotlims
+
+    ax.hlines(y=0, xmin=spec_wavs.min(), xmax=spec_wavs.max(), lw=1.0, color='gainsboro', zorder=-1)
 
     ##################################
     # ------------ DATA ------------ #
@@ -143,40 +150,28 @@ def plot_spec_phot_data(fname_spec, fname_phot, z_spec, f_lam=False, show=False,
     ax.errorbar(phot_wavs, phot_fluxes, yerr=phot_efluxes,
                 fmt='o', ms=8, color='gainsboro', markeredgecolor='k', ecolor='grey', elinewidth=1, markeredgewidth=1.,
                 zorder=1, alpha=1.)
-
-    # emission lines for overplotting
-    line_wavelengths, line_ratios = get_line_wavelengths()
-    line_names = ["Ha+NII", "OIII+Hb", "Hg", "Hd", "PaA", "PaB", "PaG", "Lya"]
-
-    # plot emisison lines
-    for i, line in enumerate(line_names):
-        if (((np.array(line_wavelengths[line]))*(1+z_spec)/10000)<(spec_wavs.max())).all() and (((np.array(line_wavelengths[line]))*(1+z_spec)/10000)>(spec_wavs.min())).all():
-            ax.vlines((np.array(line_wavelengths[line]))*(1+z_spec)/10000,
-                      ymin_plot, ymax_plot,
-                    #   np.min(spec_fluxes), np.max(spec_fluxes),
-                      color='slategrey', ls='--', lw=1, alpha=0.5)
-            ax.text((np.array(line_wavelengths[line][-1]))*(1+z_spec)/10000 - 800/10000,
-                    np.max(spec_fluxes)-0.15*np.max(spec_fluxes),
-                    line, rotation=90, color='slategrey', alpha=0.5)
-
+            
+    add_lines_msa(z_spec=z_spec)
     
     ##################################
     # --------- FORMATTING --------- #
     ##################################
     
-    ax.set_xlabel('$\mathrm{Wavelength\\ [\mu m]}$')
-    ax.set_ylabel('${\\rm \mathrm{f_{\\nu}}\\ [\\mu Jy]}$')
+    ax.set_xlabel('$\lambda_{\\rm obs}{\\rm \\ [\mu m]}$')
+    ax.set_ylabel('${f_{\\nu}} {\\rm\\ [\\mu Jy]}$')
     if f_lam:
-        ax.set_ylabel('${\\rm \mathrm{f_{\\lambda}}\\ [erg\ s^{-1} cm^{-2} \AA^{-1}]}$')
+        ax.set_ylabel('$f_{\\lambda} {\\rm\\ [erg\ s^{-1} cm^{-2} \AA^{-1}]}$')
 
-    ax.set_xlim(np.min(spec_wavs), np.max(spec_wavs))
+    ax.set_xlim(xmin_plot, xmax_plot)
     ax.set_ylim(ymin_plot, ymax_plot)
+
+    ax.set_xticks(prism_wav_xticks())
     
     # ax.legend(loc='upper left')
     fname = fname_spec.split('.spec')[0]
-    ax.set_title(fname+'\nz='+str(np.round(z_spec,4)), loc='right')
+    ax.set_title(fname+'          $z=$'+str(np.round(z_spec,4)), loc='right')
 
-    figure_timestamp(fig, fontsize=8)
+    figure_timestamp(fig, x=0.97, y=0.04, fontsize=8)
     
     plt.tight_layout()
 
@@ -187,21 +182,25 @@ def plot_spec_phot_data(fname_spec, fname_phot, z_spec, f_lam=False, show=False,
         elif run == ".":
             plotPath = "pipes/plots"
 
-        imname = fname+'_data'
-        plt.savefig(f'{plotPath}/{imname}.pdf', transparent=True)
+        str_ext = '_f_lam'
+        if not f_lam:
+            str_ext = '_f_nu'
+        imname = fname+str_ext+'_data'
+        # plt.savefig(f'{plotPath}/{imname}.pdf', transparent=True)
+        plt.savefig(f'{plotPath}/{imname}.png', transparent=True)
         plt.close(fig)
 
     if show:
         plt.show()
         plt.close(fig)
 
-    return fig    
+    return fig
 
 
 # --------------------------------------------------------------
 # ----------------------------------- PLOT FITTED SPECTRAL MODEL
 # --------------------------------------------------------------
-def plot_fitted_spectrum(fit, fname_spec, z_spec, f_lam=False, show=False, save=False):
+def plot_fitted_spectrum(fit, fname_spec, z_spec, f_lam=False, show=False, save=False, return_plotlims=False):
     """
     Plots fitted BAGPIPES spectral model, observed spectrum and observed photometry of given source
     
@@ -276,7 +275,7 @@ def plot_fitted_spectrum(fit, fname_spec, z_spec, f_lam=False, show=False, save=
     # plotting spectrum
     fig,ax = plt.subplots(figsize=(10,4.5))
 
-    ymin_plot, ymax_plot = -0.1*np.max(spec_fluxes), 1.1*np.max(spec_fluxes)
+    ax.hlines(y=0, xmin=wavs.min(), xmax=wavs.max(), lw=1.0, color='gainsboro', zorder=-1)
     
     ##################################
     # ------------ DATA ------------ #
@@ -301,64 +300,65 @@ def plot_fitted_spectrum(fit, fname_spec, z_spec, f_lam=False, show=False, save=
     
     # ---------- SPECTRUM ---------- #
     ax.plot(wavs, spec_fluxes_model,
-            zorder=-1, color='forestgreen', alpha=0.7, lw=1.5, label='Model spectrum')
+            zorder=-1, color='firebrick', alpha=0.7, lw=1.5, label='Model spectrum')
     ax.fill_between(wavs,
                     spec_fluxes_model_lo, spec_fluxes_model_hi,
-                    zorder=-1, color='forestgreen', alpha=0.1)
+                    zorder=-1, color='firebrick', alpha=0.1)
     
     # ---------- PHOTOMETRY ---------- #
     ax.errorbar(phot_wavs, phot_fluxes_model, yerr=[phot_fluxes_model-phot_fluxes_model_lo, phot_fluxes_model_hi-phot_fluxes_model],
-                fmt='o', ms=7, color='forestgreen', markeredgecolor='k', ecolor='grey', elinewidth=0.5, markeredgewidth=.5,
+                fmt='o', ms=7, color='firebrick', markeredgecolor='k', ecolor='grey', elinewidth=0.5, markeredgewidth=.5,
                 zorder=1, alpha=1., label='Model photometry')
 
     ##################################
     # ------- EMISSION LINES ------- #
     ##################################
 
-    line_wavelengths, line_ratios = get_line_wavelengths()
-    line_names = ["Ha+NII", "OIII+Hb", "Hg", "Hd", "PaA", "PaB", "PaG", "Lya"]
-
-    # plot emisison lines
-    for i, line in enumerate(line_names):
-        if (((np.array(line_wavelengths[line]))*(1+z_spec)/10000)<(wavs.max())).all() and (((np.array(line_wavelengths[line]))*(1+z_spec)/10000)>(wavs.min())).all():
-            ax.vlines((np.array(line_wavelengths[line]))*(1+z_spec)/10000,
-                       ymin_plot, ymax_plot,
-                    #   np.min(spec_fluxes), np.max(spec_fluxes),
-                      color='slategrey', ls='--', lw=1, alpha=0.5)
-            ax.text((np.array(line_wavelengths[line][-1]))*(1+z_spec)/10000 - 800/10000,
-                    np.max(spec_fluxes)-0.15*np.max(spec_fluxes),
-                    line, rotation=90, color='slategrey', alpha=0.5)
+    add_lines_msa(z_spec=z_spec)
     
     ##################################
     # --------- FORMATTING --------- #
     ##################################
     
-    ax.set_xlabel('$\mathrm{Wavelength\\ [\mu m]}$')
-    ax.set_ylabel('${\\rm \mathrm{f_{\\lambda}}\\ [erg\ s^{-1} cm^{-2} \AA^{-1}]}$')
+    ax.set_xlabel('$\lambda_{\\rm obs}{\\rm \\ [\mu m]}$')
+    ax.set_ylabel('${f_{\\lambda}}{\\rm\\ [erg\ s^{-1} cm^{-2} \AA^{-1}]}$')
     if not f_lam:
-        ax.set_ylabel('${\\rm \mathrm{f_{\\nu}}\\ [\\mu Jy]}$')
+        ax.set_ylabel('${f_{\\nu}} {\\rm\\ [\\mu Jy]}$')
 
+    xmin_plot, xmax_plot = np.min(wavs), np.max(wavs)
+    ymin_plot, ymax_plot = -0.1*np.max(spec_fluxes), 1.1*np.max(spec_fluxes)
+
+    ax.set_xlim(xmin_plot, xmax_plot)
     ax.set_ylim(ymin_plot, ymax_plot)
+
+    ax.set_xticks(prism_wav_xticks())
     
     ax.legend(loc='upper left', framealpha=0.5)
 
     fname = fname_spec.split('.spec')[0]
-    ax.set_title(fname+'\nz='+str(np.round(z_spec,4)), loc='right')
+    ax.set_title(fname+'          $z=$'+str(np.round(z_spec,4)), loc='right')
 
-    figure_timestamp(fig, fontsize=8)
+    figure_timestamp(fig, x=0.97, y=0.04, fontsize=8)
     
     plt.tight_layout()
     
     if save:
-        plotpath = "pipes/plots/" + fit.run + "/" + fname + '_specfit.pdf'
-        plt.savefig(plotpath, transparent=True)
+        str_ext = '_f_lam'
+        if not f_lam:
+            str_ext = '_f_nu'
+        plotpath = "pipes/plots/" + fit.run + "/" + fname + str_ext + '_specfit' 
+        # plt.savefig(plotpath+'.pdf', transparent=True)
+        plt.savefig(plotpath+'.png', transparent=True)
         plt.close(fig)
 
     if show:
         plt.show()
         plt.close(fig)
 
-    return fig
+    if return_plotlims:
+        return fig, [xmin_plot, xmax_plot, ymin_plot, ymax_plot]
+    else:
+        return fig
 
 
 # --------------------------------------------------------------
@@ -383,8 +383,8 @@ def plot_fitted_sfh(fit, fname_spec, z_spec, show=False, save=False):
     
     fit.posterior.get_advanced_quantities()
     
-    color1 = "slategrey"
-    color2 = "slategrey"
+    color1 = "firebrick"
+    color2 = "firebrick"
     alpha = 0.6
     zorder=4
     label=None
@@ -393,6 +393,10 @@ def plot_fitted_sfh(fit, fname_spec, z_spec, show=False, save=False):
 
     z_array = np.arange(0., 100., 0.01)
     age_at_z = cosmo.age(z_array).value
+
+    age_of_universe_lim = cosmo.age(3).value
+    if z_spec<3:
+        age_of_universe_lim = cosmo.age(1).value
     
     # Calculate median redshift and median age of Universe
     if "redshift" in fit.fitted_model.params:
@@ -401,7 +405,7 @@ def plot_fitted_sfh(fit, fname_spec, z_spec, show=False, save=False):
     else:
         redshift = fit.fitted_model.model_components["redshift"]
 
-    age_of_universe = np.interp(redshift, z_array, age_at_z)
+    age_of_universe = cosmo.age(z_spec).value#np.interp(redshift, z_array, age_at_z)
 
     # Calculate median and confidence interval for SFH posterior
     post = np.percentile(fit.posterior.samples["sfh"], (16, 50, 84), axis=0).T
@@ -409,34 +413,45 @@ def plot_fitted_sfh(fit, fname_spec, z_spec, show=False, save=False):
     # Plot the SFH
     # x = age_of_universe - fit.posterior.sfh.ages*10**-9
     x = fit.posterior.sfh.ages*10**-9
+    xmask = x<age_of_universe
 
     fig,ax = plt.subplots(figsize=(10,4.5))
 
-    ax.plot(x, post[:, 1], color=color1, zorder=zorder+1)
-    ax.fill_between(x, post[:, 0], post[:, 2], color=color2,
+    ax.plot(x[xmask], post[:, 1][xmask], color=color1, zorder=zorder+1)
+    ax.fill_between(x[xmask], post[:, 0][xmask], post[:, 2][xmask], color=color2,
                     alpha=alpha, zorder=zorder, lw=0, label=label)
 
     # ax.set_ylim(0., np.max([ax.get_ylim()[1], 1.1*np.max(post[:, 2])]))
     # ax.set_xlim(age_of_universe, 0)
-    ax.set_xlim(0, age_of_universe)
+
+    ymin, ymax = ax.get_ylim()
+    ax.vlines(age_of_universe_lim, ymin=ymin, ymax=ymax, color='grey', ls='--')
+    ax.text(0.97*age_of_universe_lim, 0.5*ymax, "Age of Universe at $z=3$", fontsize=12, rotation=90)
+    ax.vlines(age_of_universe, ymin=ymin, ymax=ymax, color='grey', ls='--')
+    # ax.text(age_of_universe-0.03*age_of_universe_lim, 0.5*ymax, "Age of Universe at $z_{\\rm spec}$", fontsize=12, rotation=90)
+    
+    ax.set_xlim(-0.04*age_of_universe_lim, 1.04*age_of_universe_lim)
+
+    
 
     # Set axis labels
     ax.set_ylabel("${\\rm SFR \ [ M_\\odot yr^{-1}]}$")
-    # ax.set_xlabel("Age of Universe [Gyr]")
     ax.set_xlabel("${\\rm Lookback\\ time\\ [Gyr]}$")
 
-    ax.set_yscale("log")
+    # uncomment line below for log scale on y-axis
+    # ax.set_yscale("log")
 
     fname = fname_spec.split('.spec')[0]
-    ax.set_title(fname+'\nz='+str(np.round(z_spec,4)), loc='right')
+    ax.set_title(fname+'          $z=$'+str(np.round(z_spec,4)), loc='right')
 
-    figure_timestamp(fig, fontsize=8)
+    figure_timestamp(fig, x=0.97, y=0.04, fontsize=8)
 
     plt.tight_layout()
 
     if save:
-        plotpath = "pipes/plots/" + fit.run + "/" + fname + '_sfh.pdf'
-        plt.savefig(plotpath, transparent=True)
+        plotpath = "pipes/plots/" + fit.run + "/" + fname + '_sfh'
+        # plt.savefig(plotpath+'.pdf', transparent=True)
+        plt.savefig(plotpath+'.png', transparent=True)
         plt.close(fig)
 
     if show:
@@ -498,10 +513,11 @@ def plot_corner(fit, fname_spec, z_spec, fit_instructions, filt_list, show=False
             labels[i] = "t" + str(t_percentile) + " / Gyr"
 
     # Make the corner plot
-    fig = corner.corner(samples, bins=bins, labels=labels,
+    fig = corner.corner(samples, bins=bins, labels=labels, color="k",
                         quantiles=[0.16, 0.5, 0.84],
                         show_titles=True, smooth=1., title_kwargs={"fontsize": 13},
-                        hist_kwargs={"density": True, "color": "skyblue", "edgecolor": "forestgreen", "lw": 2})
+                        hist_kwargs={"density": True, "histtype": "stepfilled",
+                                     "color": "firebrick", "edgecolor": "firebrick", "lw": 2, "alpha": 0.3})
                         #smooth1d=1.)
     
     # overplot priors
@@ -518,11 +534,11 @@ def plot_corner(fit, fname_spec, z_spec, fit_instructions, filt_list, show=False
         ax = axes[i * (len(names) + 1)]  # spacing of diagonal axes
         ax.hist(priors.samples[names[i]],
                 bins=bins, density=True,
-                histtype='step', ls='-', lw=2, edgecolor="grey", zorder=-1)
+                histtype='stepfilled', ls='-', lw=2, edgecolor="steelblue", zorder=-1, alpha=0.3)
         
 
     # fname = fname_spec.split('.spec')[0]
-    # plt.title(fname+'\nz='+str(np.round(z_spec,4)), loc='right')
+    # plt.title(fname+'          $z=$'+str(np.round(z_spec,4)), loc='right')
 
     # figure_timestamp(fig, fontsize=8, ha='right', va='top')
 
@@ -530,8 +546,9 @@ def plot_corner(fit, fname_spec, z_spec, fit_instructions, filt_list, show=False
 
     if save:
         fname = fname_spec.split('.spec')[0]
-        plotpath = "pipes/plots/" + fit.run + "/" + fname + '_corner.pdf'
-        plt.savefig(plotpath, transparent=True)
+        plotpath = "pipes/plots/" + fit.run + "/" + fname + '_corner'
+        # plt.savefig(plotpath+'.pdf', transparent=True)
+        plt.savefig(plotpath+'.png', transparent=True)
         plt.close(fig)
 
     if show:
@@ -546,7 +563,7 @@ def plot_corner(fit, fname_spec, z_spec, fit_instructions, filt_list, show=False
 # --------------------------------------------- CALIBRATION PLOT
 # --------------------------------------------------------------
 
-def plot_calib(fit, fname_spec, z_spec, show=False, save=False):
+def plot_calib(fit, fname_spec, z_spec, show=False, save=False, plot_xlims=None):
     """
     Makes plot of the calibration curve
     
@@ -575,30 +592,43 @@ def plot_calib(fit, fname_spec, z_spec, show=False, save=False):
     samples = fit.posterior.samples["calib"]
     post = np.percentile(samples, (16, 50, 84), axis=0).T
 
-    ax.plot(wavs/10000, post[:, 0], color="forestgreen", zorder=10, lw=0.1)
-    ax.plot(wavs/10000, post[:, 1], color="forestgreen", zorder=10, label='Posterior calib curve')
-    ax.plot(wavs/10000, post[:, 2], color="forestgreen", zorder=10, lw=0.1)
+    ax.plot(wavs/10000, post[:, 0], color="firebrick", zorder=10, lw=0.1)
+    ax.plot(wavs/10000, post[:, 1], color="firebrick", zorder=10, label='Posterior calib curve')
+    ax.plot(wavs/10000, post[:, 2], color="firebrick", zorder=10, lw=0.1)
     ax.fill_between(wavs/10000, post[:, 0], post[:, 2], lw=0,
-                    color="forestgreen", alpha=0.3, zorder=9)
+                    color="firebrick", alpha=0.3, zorder=9)
 
-    ax.set_xlim(wavs[0]/10000, wavs[-1]/10000)
+    ymin, ymax = ax.get_ylim()
+    if ymax<2:
+        ymax=2
+    yticks = np.arange(0, ymax+0.5, 0.5)
 
-    ax.set_xlabel("$\\mathrm{Wavelength\\ [\\mu m]}$")
+    if plot_xlims==None:
+        ax.set_xlim(wavs[0]/10000, wavs[-1]/10000)
+    elif plot_xlims!=None:
+        ax.set_xlim(plot_xlims)
+    ax.set_ylim(0, ymax)
+
+    ax.set_xticks(prism_wav_xticks())
+    # ax.set_yticks(yticks)
+
+    ax.set_xlabel("$\lambda_{\\rm obs}{\\rm \\ [\mu m]}$")
     ax.set_ylabel("$\\mathrm{Spectrum\\ multiplied\\ by}$")
 
     plt.legend(loc='upper right')
 
     fname = fname_spec.split('.spec')[0]
-    ax.set_title(fname+'\nz='+str(np.round(z_spec,4)), loc='right')
+    ax.set_title(fname+'          $z=$'+str(np.round(z_spec,4)), loc='right')
 
-    figure_timestamp(fig, fontsize=8)
+    figure_timestamp(fig, x=0.97, y=0.04, fontsize=8)
 
     plt.tight_layout()
 
     if save:
         fname = fname_spec.split('.spec')[0]
-        plotpath = "pipes/plots/" + fit.run + "/" + fname + '_calib.pdf'
-        plt.savefig(plotpath, transparent=True)
+        plotpath = "pipes/plots/" + fit.run + "/" + fname + '_calib'
+        # plt.savefig(plotpath+'.pdf', transparent=True)
+        plt.savefig(plotpath+'.png', transparent=True)
         plt.close(fig)
 
     if show:
@@ -727,3 +757,75 @@ def save_calib(fit, fname_spec, save=False):
     tab.write(tabpath, format='csv', overwrite=True)
 
     return None
+
+
+
+# --------------------------------------------------------------
+# ----------------------------------- EMISSION LINES FROM MSAEXP
+# --------------------------------------------------------------
+def add_lines_msa(z_spec):
+    """
+    Plots emission lines in colours consistent with msaexp plotting format
+    
+    Parameters
+    ----------
+    z_spec : spectroscopic redshift, format=float
+
+    Returns
+    -------
+    None
+    """
+
+    if z_spec is not None:
+        cc = MPL_COLORS
+        for w, c in zip(
+            [
+                1216.0,
+                1909.0,
+                2799.0,
+                3727,
+                4101,
+                4340,
+                4860,
+                5007,
+                6565,
+                9070,
+                9530,
+                1.094e4,
+                1.282e4,
+                1.875e4,
+                1.083e4,
+            ],
+            [
+                "purple",
+                "olive",
+                "skyblue",
+                cc["purple"],
+                cc["g"],
+                cc["g"],
+                cc["g"],
+                cc["b"],
+                cc["g"],
+                "darkred",
+                "darkred",
+                cc["pink"],
+                cc["pink"],
+                cc["pink"],
+                cc["orange"],
+            ],
+        ):
+            wz = w * (1 + z_spec) / 1.0e4
+            dw = 0.02
+
+            plt.fill_between(
+                [wz - dw, wz + dw],
+                [0, 0],
+                [100, 100],
+                color=c,
+                alpha=0.07,
+                zorder=-100,
+            )
+            
+
+
+
