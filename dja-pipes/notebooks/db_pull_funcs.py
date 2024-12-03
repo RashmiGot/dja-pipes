@@ -59,8 +59,18 @@ def pull_phot_from_db(fname_spec, fname_phot, file_path='files/'):
     url = 'https://grizli-cutout.herokuapp.com/grizli_photometry?file_spec='
     nrp_gr_match = Table.read(url+fname_spec, format='csv')
 
+    # choose best photometry
+    photcats_latest = Table.read("photcats_latest.csv", format="csv")
+    matching_index = []
+    for i in range(len(nrp_gr_match)):
+        try:
+            matching_index.append(list(photcats_latest["file_phot"]).index(list(nrp_gr_match["file_phot"])[i]))
+        except ValueError:
+            matching_index.append(1e9)
+    photcat_index = matching_index.index(min(matching_index))
+
     # write SQL query output to astropy Table
-    phot_tab = Table(nrp_gr_match[0])
+    phot_tab = Table(nrp_gr_match[photcat_index])
     # write table to output file
     phot_tab.write(f'{file_path}{fname_phot}', format='ascii.commented_header', overwrite=True)
 
@@ -84,6 +94,15 @@ def pull_zspec_from_db(fname_spec):
     """
 
     z_spec_url = 'https://grizli-cutout.herokuapp.com/nirspec_file_redshift?file='
-    z_spec = Table.read(z_spec_url+fname_spec, format='csv')['z'][0]
+    z_spec_tab = Table.read(z_spec_url+fname_spec, format='csv')
+
+    if 'z_prism' in z_spec_tab.colnames:
+        zdiff = abs(z_spec_tab["z_prism"][0]-z_spec_tab["z"][0])
+        if zdiff<0.1:
+            z_spec = z_spec_tab["z_prism"][0]
+        else:
+            z_spec = z_spec_tab["z"][0]
+    else:
+        z_spec = z_spec_tab["z"][0]
 
     return z_spec
