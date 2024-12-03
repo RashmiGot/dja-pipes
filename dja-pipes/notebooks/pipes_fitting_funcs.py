@@ -312,14 +312,16 @@ def load_phot(ID):
     photometry = np.c_[fluxes,efluxes][phot_flux_mask]
             
     # enforce a maximum SNR of 20, or 10 in the IRAC channels
-    for i in range(len(photometry)):
-        if i < 10:
-            max_snr = 20.
-        else:
-            max_snr = 10.
+    # for i in range(len(photometry)):
+    #     if i < 10:
+    #         max_snr = 20.
+    #     else:
+    #         max_snr = 10.
 
-        if photometry[i, 0]/photometry[i, 1] > max_snr:
-            photometry[i, 1] = photometry[i, 0]/max_snr
+    #     if photometry[i, 0]/photometry[i, 1] > max_snr:
+    #         photometry[i, 1] = photometry[i, 0]/max_snr
+    sys=0.03
+    photometry[:, 1] = np.sqrt((photometry[:, 1])**2 + (sys*photometry[:, 0])**2)
 
     return photometry
 
