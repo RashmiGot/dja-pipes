@@ -98,6 +98,7 @@ def plot_spec_phot_data(fname_spec, fname_phot, z_spec, f_lam=False, show=False,
 
     # photometry
     phot_tab = Table.read(f'files/{fname_phot}', format='ascii.commented_header')
+    
 
     # jwst filter list
     filt_list = np.loadtxt("../filters/filt_list.txt", dtype="str")
@@ -105,8 +106,14 @@ def plot_spec_phot_data(fname_spec, fname_phot, z_spec, f_lam=False, show=False,
     # extract fluxes from cat
     flux_colNames = [filt_list_i.split('/')[-1].split('.')[0]+'_tot_1' for filt_list_i in filt_list]
     eflux_colNames = [filt_list_i.split('/')[-1].split('.')[0]+'_etot_1' for filt_list_i in filt_list]
+
+    # zeropoints table
+    zpoints = Table.read('zeropoints.csv', format='csv')
+    zpoints_sub = zpoints[zpoints["root"]==phot_tab["file_phot"][0].split('_phot')[0]]
+    zp_array = [zpoints_sub[zpoints_sub["f_name"]==flux_colName]["zp"][0] for flux_colName in flux_colNames]
     
     phot_fluxes_temp = np.lib.recfunctions.structured_to_unstructured(np.array(phot_tab[list(flux_colNames)]))
+    phot_fluxes_temp = phot_fluxes_temp * zp_array
     phot_efluxes_temp = np.lib.recfunctions.structured_to_unstructured(np.array(phot_tab[list(eflux_colNames)]))
 
     phot_flux_mask = (phot_fluxes_temp>-90) & (phot_efluxes_temp>0)
@@ -182,10 +189,10 @@ def plot_spec_phot_data(fname_spec, fname_phot, z_spec, f_lam=False, show=False,
         elif run == ".":
             plotPath = "pipes/plots"
 
-        str_ext = '_f_lam'
+        str_ext = '_flam'
         if not f_lam:
-            str_ext = '_f_nu'
-        imname = fname+str_ext+'_data'
+            str_ext = '_fnu'
+        imname = fname+'_data'+str_ext
         # plt.savefig(f'{plotPath}/{imname}.pdf', transparent=True)
         plt.savefig(f'{plotPath}/{imname}.png', transparent=True)
         plt.close(fig)
@@ -308,7 +315,7 @@ def plot_fitted_spectrum(fit, fname_spec, z_spec, f_lam=False, show=False, save=
     # ---------- PHOTOMETRY ---------- #
     ax.errorbar(phot_wavs, phot_fluxes_model, yerr=[phot_fluxes_model-phot_fluxes_model_lo, phot_fluxes_model_hi-phot_fluxes_model],
                 fmt='o', ms=7, color='firebrick', markeredgecolor='k', ecolor='grey', elinewidth=0.5, markeredgewidth=.5,
-                zorder=1, alpha=1., label='Model photometry')
+                zorder=1, alpha=0.7, label='Model photometry')
 
     ##################################
     # ------- EMISSION LINES ------- #
@@ -343,10 +350,10 @@ def plot_fitted_spectrum(fit, fname_spec, z_spec, f_lam=False, show=False, save=
     plt.tight_layout()
     
     if save:
-        str_ext = '_f_lam'
+        str_ext = '_flam'
         if not f_lam:
-            str_ext = '_f_nu'
-        plotpath = "pipes/plots/" + fit.run + "/" + fname + str_ext + '_specfit' 
+            str_ext = '_fnu'
+        plotpath = "pipes/plots/" + fit.run + "/" + fname  + '_specfit' + str_ext
         # plt.savefig(plotpath+'.pdf', transparent=True)
         plt.savefig(plotpath+'.png', transparent=True)
         plt.close(fig)
@@ -401,7 +408,6 @@ def plot_fitted_sfh(fit, fname_spec, z_spec, show=False, save=False):
     # Calculate median redshift and median age of Universe
     if "redshift" in fit.fitted_model.params:
         redshift = np.median(fit.posterior.samples["redshift"])
-
     else:
         redshift = fit.fitted_model.model_components["redshift"]
 
@@ -425,14 +431,12 @@ def plot_fitted_sfh(fit, fname_spec, z_spec, show=False, save=False):
     # ax.set_xlim(age_of_universe, 0)
 
     ymin, ymax = ax.get_ylim()
-    ax.vlines(age_of_universe_lim, ymin=ymin, ymax=ymax, color='grey', ls='--')
+    ax.vlines(age_of_universe_lim, ymin=ymin, ymax=ymax, color='grey', ls='-')
     ax.text(0.97*age_of_universe_lim, 0.5*ymax, "Age of Universe at $z=3$", fontsize=12, rotation=90)
     ax.vlines(age_of_universe, ymin=ymin, ymax=ymax, color='grey', ls='--')
     # ax.text(age_of_universe-0.03*age_of_universe_lim, 0.5*ymax, "Age of Universe at $z_{\\rm spec}$", fontsize=12, rotation=90)
     
     ax.set_xlim(-0.04*age_of_universe_lim, 1.04*age_of_universe_lim)
-
-    
 
     # Set axis labels
     ax.set_ylabel("${\\rm SFR \ [ M_\\odot yr^{-1}]}$")
