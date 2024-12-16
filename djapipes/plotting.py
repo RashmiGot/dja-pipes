@@ -71,7 +71,7 @@ def prism_wav_xticks(xmin=1, xmax=5, dx=0.5):
 # --------------------------------------------------------------
 # ---------------------- PLOT SPECTROSCOPIC AND PHOTOMETRIC DATA
 # --------------------------------------------------------------
-def plot_spec_phot_data(fname_spec, fname_phot, z_spec, f_lam=False, show=False, save=False, run='.', plotlims=None):
+def plot_spec_phot_data(fname_spec, fname_phot, z_spec, suffix, f_lam=False, show=False, save=False, run='.', plotlims=None):
     """
     Plots spectrum and photometry of given source
     
@@ -212,7 +212,7 @@ def plot_spec_phot_data(fname_spec, fname_phot, z_spec, f_lam=False, show=False,
         str_ext = '_flam'
         if not f_lam:
             str_ext = '_fnu'
-        imname = fname+'_data'+str_ext
+        imname = fname + '_' + suffix + '_data' + str_ext
         # plt.savefig(f'{plotPath}/{imname}.pdf', transparent=True)
         plt.savefig(f'{plotPath}/{imname}.png', transparent=True)
         plt.close(fig)
@@ -227,7 +227,7 @@ def plot_spec_phot_data(fname_spec, fname_phot, z_spec, f_lam=False, show=False,
 # --------------------------------------------------------------
 # ----------------------------------- PLOT FITTED SPECTRAL MODEL
 # --------------------------------------------------------------
-def plot_fitted_spectrum(fit, fname_spec, z_spec, f_lam=False, show=False, save=False, return_plotlims=False):
+def plot_fitted_spectrum(fit, fname_spec, z_spec, suffix, f_lam=False, show=False, save=False, return_plotlims=False):
     """
     Plots fitted BAGPIPES spectral model, observed spectrum and observed photometry of given source
     
@@ -373,7 +373,7 @@ def plot_fitted_spectrum(fit, fname_spec, z_spec, f_lam=False, show=False, save=
         str_ext = '_flam'
         if not f_lam:
             str_ext = '_fnu'
-        plotpath = "pipes/plots/" + fit.run + "/" + fname  + '_specfit' + str_ext
+        plotpath = "pipes/plots/" + fit.run + "/" + fname +  '_' + suffix + '_specfit' + str_ext
         # plt.savefig(plotpath+'.pdf', transparent=True)
         plt.savefig(plotpath+'.png', transparent=True)
         plt.close(fig)
@@ -391,7 +391,7 @@ def plot_fitted_spectrum(fit, fname_spec, z_spec, f_lam=False, show=False, save=
 # --------------------------------------------------------------
 # ---------------------------------- PLOT STAR-FORMATION HISTORY
 # --------------------------------------------------------------
-def plot_fitted_sfh(fit, fname_spec, z_spec, show=False, save=False):
+def plot_fitted_sfh(fit, fname_spec, z_spec, suffix, show=False, save=False):
     """
     Plots star-formation history from fitted BAGPIPES model
     
@@ -473,7 +473,7 @@ def plot_fitted_sfh(fit, fname_spec, z_spec, show=False, save=False):
     plt.tight_layout()
 
     if save:
-        plotpath = "pipes/plots/" + fit.run + "/" + fname + '_sfh'
+        plotpath = "pipes/plots/" + fit.run + "/" + fname + '_' + suffix + '_sfh'
         # plt.savefig(plotpath+'.pdf', transparent=True)
         plt.savefig(plotpath+'.png', transparent=True)
         plt.close(fig)
@@ -490,7 +490,7 @@ def plot_fitted_sfh(fit, fname_spec, z_spec, show=False, save=False):
 # ---------------------------------------- POSTERIOR CORNER PLOT
 # --------------------------------------------------------------
 
-def plot_corner(fit, fname_spec, z_spec, fit_instructions, filt_list, show=False, save=False, bins=25):
+def plot_corner(fit, fname_spec, z_spec, fit_instructions, filt_list, suffix, show=False, save=False, bins=25):
     """
     Makes corner plot of the fitted parameters
     
@@ -570,7 +570,7 @@ def plot_corner(fit, fname_spec, z_spec, fit_instructions, filt_list, show=False
 
     if save:
         fname = fname_spec.split('.spec')[0]
-        plotpath = "pipes/plots/" + fit.run + "/" + fname + '_corner'
+        plotpath = "pipes/plots/" + fit.run + "/" + fname + '_' + suffix + '_corner'
         # plt.savefig(plotpath+'.pdf', transparent=True)
         plt.savefig(plotpath+'.png', transparent=True)
         plt.close(fig)
@@ -587,7 +587,7 @@ def plot_corner(fit, fname_spec, z_spec, fit_instructions, filt_list, show=False
 # --------------------------------------------- CALIBRATION PLOT
 # --------------------------------------------------------------
 
-def plot_calib(fit, fname_spec, z_spec, show=False, save=False, plot_xlims=None):
+def plot_calib(fit, fname_spec, z_spec, suffix, show=False, save=False, plot_xlims=None):
     """
     Makes plot of the calibration curve
     
@@ -639,7 +639,7 @@ def plot_calib(fit, fname_spec, z_spec, show=False, save=False, plot_xlims=None)
     ax.set_xlabel("$\lambda_{\\rm obs}{\\rm \\ [\mu m]}$")
     ax.set_ylabel("$\\mathrm{Spectrum\\ multiplied\\ by}$")
 
-    plt.legend(loc='upper right')
+    plt.legend(loc='upper left')
 
     fname = fname_spec.split('.spec')[0]
     ax.set_title(fname+'          $z=$'+str(np.round(z_spec,4)), loc='right')
@@ -650,7 +650,7 @@ def plot_calib(fit, fname_spec, z_spec, show=False, save=False, plot_xlims=None)
 
     if save:
         fname = fname_spec.split('.spec')[0]
-        plotpath = "pipes/plots/" + fit.run + "/" + fname + '_calib'
+        plotpath = "pipes/plots/" + fit.run + "/" + fname + '_' + suffix + '_calib'
         # plt.savefig(plotpath+'.pdf', transparent=True)
         plt.savefig(plotpath+'.png', transparent=True)
         plt.close(fig)
@@ -667,7 +667,7 @@ def plot_calib(fit, fname_spec, z_spec, show=False, save=False, plot_xlims=None)
 # --------------------------------------------------------------
 # -------------------------------- TABLE OF POSTERIOR PROPERTIES
 # --------------------------------------------------------------
-def save_posterior_sample_dists(fit, fname_spec, save=False):
+def save_posterior_sample_dists(fit, fname_spec, suffix, save=False):
     """
     Makes table of 16th, 50th, and 84th percentile values of all posterior quantities from BAGPIPES fit, saves table to csv file
     
@@ -738,7 +738,7 @@ def save_posterior_sample_dists(fit, fname_spec, save=False):
     if not os.path.exists("./pipes/cats/" + fit.run):
         os.mkdir("./pipes/cats/" + fit.run)
 
-    tabpath = "pipes/cats/" + fit.run + "/" + fname + '_postcat.csv'
+    tabpath = "pipes/cats/" + fit.run + "/" + fname + '_' + suffix + '_postcat.csv'
     tab_stacked.write(tabpath, format='csv', overwrite=True)
 
     return None
@@ -748,7 +748,7 @@ def save_posterior_sample_dists(fit, fname_spec, save=False):
 # --------------------------------------------------------------
 # -------------------------------------- CALIBRATION CURVE TABLE
 # --------------------------------------------------------------
-def save_calib(fit, fname_spec, save=False):
+def save_calib(fit, fname_spec, suffix, save=False):
     """
     Makes table of 16th, 50th, and 84th percentile values of calibratoion curve from BAGPIPES fit, saves table to csv file
     
@@ -777,7 +777,7 @@ def save_calib(fit, fname_spec, save=False):
     if not os.path.exists("./pipes/cats/" + fit.run):
         os.mkdir("./pipes/cats/" + fit.run)
 
-    tabpath = "pipes/cats/" + fit.run + "/" + fname + '_calibcurve.csv'
+    tabpath = "pipes/cats/" + fit.run + "/" + fname + '_' + suffix + '_calibcurve.csv'
     tab.write(tabpath, format='csv', overwrite=True)
 
     return None

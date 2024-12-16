@@ -7,16 +7,16 @@ from astropy.cosmology import Planck13 as cosmo
 
 import os
 
-from . import database as db_pull
-from . import fitting as p_fit
-from . import plotting as p_plot
+from . import database
+from . import fitting
+from . import plotting
 
 # check if 'files' directory exists, else make one
 if not os.path.exists("./files"):
     os.mkdir("./files")
 
 # defines bagpipes fit_instructions dictionary 
-def fitting_params(runid, z_spec, sfh="continuity", n_age_bins=10, scale_disp=1.3, dust_type="Kriek", 
+def fitting_params(runid, z_spec, sfh="continuity", n_age_bins=10, scale_disp=1.3, dust_type="kriek", 
                    use_msa_resamp=False, fit_agn=False, fit_dla=False, fit_mlpoly=False):
 
     fit_instructions = {}
@@ -96,7 +96,7 @@ def fitting_params(runid, z_spec, sfh="continuity", n_age_bins=10, scale_disp=1.
     
     ## ---------- ## dust law
     dust = {}
-    if dust_type=="Calzetti":
+    if dust_type=="calzetti":
         dust["type"] = "Calzetti"            # Shape of the attenuation curve
         dust["Av"] = (0., 6.)                # Vary Av between 0 and 4 magnitudes
     elif dust_type=="CF00":
@@ -107,7 +107,7 @@ def fitting_params(runid, z_spec, sfh="continuity", n_age_bins=10, scale_disp=1.
         dust["n_prior"] = "Gaussian"
         dust["n_prior_mu"] = 0.7
         dust["n_prior_sigma"] = 0.3
-    elif dust_type=="Salim":
+    elif dust_type=="salim":
         dust["type"] = "Salim"
         dust["Av"] = (0., 6.)                # Vary Av magnitude
         dust["delta"] = (-0.3, 0.3)          # Vary att. slope
@@ -116,7 +116,7 @@ def fitting_params(runid, z_spec, sfh="continuity", n_age_bins=10, scale_disp=1.
         dust["delta_prior_sigma"] = 0.1      # standard dev. of prior on att. slope
         dust["B"] = (0., 3)                  # Vary 2175A bump strength
         dust["B_prior"] = "uniform"          # prior on 2175A bump strength
-    elif dust_type=="Kriek":
+    elif dust_type=="kriek":
         dust["type"] = "Salim"               # Specify parameters within the "Salim" model to match Kriek & Conroy 2013
         dust["Av"] = (0., 6.)                # Vary Av magnitude
         dust["eta"] = 2.0#1.0/0.4 - 1        # Multiplicative factor on Av for stars in birth clouds
@@ -162,7 +162,7 @@ def fitting_params(runid, z_spec, sfh="continuity", n_age_bins=10, scale_disp=1.
         fit_instructions["dla"] = dla
 
     ## ---------- ## calibration curve (2nd order polynomial)
-    cfit, cfit_err, _ = p_fit.guess_calib(runid, z=z_spec) # guessing initial calibration coefficients
+    cfit, cfit_err, _ = fitting.guess_calib(runid, z=z_spec) # guessing initial calibration coefficients
 
     calib = {}
     calib["type"] = "polynomial_bayesian"
@@ -200,7 +200,7 @@ def fitting_params(runid, z_spec, sfh="continuity", n_age_bins=10, scale_disp=1.
     return(fit_instructions)
 
 
-def run_pipes_on_dja_spec(spec_name, suffix='', sfh="continuity", n_age_bins=10, scale_disp=1.3, dust_type="Kriek", 
+def run_pipes_on_dja_spec(spec_name, suffix='', sfh="continuity", n_age_bins=10, scale_disp=1.3, dust_type="kriek", 
                    use_msa_resamp=False, fit_agn=False, fit_dla=False, fit_mlpoly=False):
     """
     Runs bagpipes on spectrum from DJA AWS database, saves posteriors as .h5 files and plots as .pdf files
@@ -238,26 +238,26 @@ def run_pipes_on_dja_spec(spec_name, suffix='', sfh="continuity", n_age_bins=10,
     filePath = 'files/'
 
     # pull spectrum and photometry from the aws database
-    db_pull.pull_spec_from_db(fname_spec, filePath)
+    database.pull_spec_from_db(fname_spec, filePath)
 
     try:
-        db_pull.pull_phot_from_db(fname_spec, fname_phot, filePath)
+        database.pull_phot_from_db(fname_spec, fname_phot, filePath)
     except IndexError:
         print("No photometry found")
         return None
 
     # spectroscopic redshift
-    z_spec = db_pull.pull_zspec_from_db(fname_spec)
+    z_spec = database.pull_zspec_from_db(fname_spec)
 
     ##################################
     # -------- BAGPIPES RUN -------- #
     ##################################
 
     # jwst filter list
-    filt_list = p_fit.updated_filt_list(runid)
+    filt_list = fitting.updated_filt_list(runid)
 
     # making galaxy object
-    galaxy = pipes.galaxy(runid, p_fit.load_both, filt_list=filt_list,
+    galaxy = pipes.galaxy(runid, fitting.load_both, filt_list=filt_list,
                         spec_units='ergscma',
                         phot_units='ergscma',
                         out_units="ergscma")
@@ -268,7 +268,7 @@ def run_pipes_on_dja_spec(spec_name, suffix='', sfh="continuity", n_age_bins=10,
                                       use_msa_resamp=use_msa_resamp, fit_agn=fit_agn, fit_dla=fit_dla, fit_mlpoly=fit_mlpoly)
 
     # check if posterior file exists
-    suffix = 'sfh_'+sfh+'_dust_type_'+dust_type
+    suffix = suffix+sfh+'_'+dust_type
 
     if os.path.isfile(f'pipes/posterior/{runName}/{runName}_{suffix}.h5'):
         os.rename(f'pipes/posterior/{runName}/{runName}_{suffix}.h5', f'pipes/posterior/{runName}/{runid}.h5')
@@ -284,22 +284,27 @@ def run_pipes_on_dja_spec(spec_name, suffix='', sfh="continuity", n_age_bins=10,
     ##################################
 
     # fitted model
-    _, plotlims_flam = p_plot.plot_fitted_spectrum(fit, fname_spec, z_spec=z_spec, f_lam=True, save=True, return_plotlims=True)
-    _, plotlims_fnu = p_plot.plot_fitted_spectrum(fit, fname_spec, z_spec=z_spec, f_lam=False, save=True, return_plotlims=True)
+    _, plotlims_flam = plotting.plot_fitted_spectrum(fit, fname_spec, z_spec=z_spec, suffix=suffix,
+                                                     f_lam=True, save=True, return_plotlims=True)
+    _, plotlims_fnu = plotting.plot_fitted_spectrum(fit, fname_spec, z_spec=z_spec, suffix=suffix,
+                                                     f_lam=False, save=True, return_plotlims=True)
     # # save data to plot
-    _ = p_plot.plot_spec_phot_data(fname_spec, fname_phot, z_spec=z_spec, f_lam=True, show=False, save=True, run=runName, plotlims=plotlims_flam)
-    _ = p_plot.plot_spec_phot_data(fname_spec, fname_phot, z_spec=z_spec, f_lam=False, show=False, save=True, run=runName, plotlims=plotlims_fnu)
+    _ = plotting.plot_spec_phot_data(fname_spec, fname_phot, z_spec=z_spec, suffix=suffix,
+                                     f_lam=True, show=False, save=True, run=runName, plotlims=plotlims_flam)
+    _ = plotting.plot_spec_phot_data(fname_spec, fname_phot, z_spec=z_spec, suffix=suffix,
+                                     f_lam=False, show=False, save=True, run=runName, plotlims=plotlims_fnu)
     # # star-formation history
-    _ = p_plot.plot_fitted_sfh(fit, fname_spec, z_spec=z_spec, save=True)
+    _ = plotting.plot_fitted_sfh(fit, fname_spec, z_spec=z_spec, suffix=suffix, save=True)
     # # posterior corner plot
-    _ = p_plot.plot_corner(fit, fname_spec, z_spec, fit_instructions, filt_list, save=True)
+    _ = plotting.plot_corner(fit, fname_spec, z_spec, fit_instructions, filt_list, suffix=suffix, save=True)
     # # calibration curve
-    _ = p_plot.plot_calib(fit, fname_spec, z_spec=z_spec, save=True, plot_xlims=[plotlims_flam[0],plotlims_flam[1]])
+    _ = plotting.plot_calib(fit, fname_spec, z_spec=z_spec, suffix=suffix,
+                            save=True, plot_xlims=[plotlims_flam[0],plotlims_flam[1]])
 
     # # saving posterior quantities to table
-    _ = p_plot.save_posterior_sample_dists(fit, fname_spec, save=True)
+    _ = plotting.save_posterior_sample_dists(fit, fname_spec, suffix=suffix, save=True)
     # # saving calib curve to table
-    _ = p_plot.save_calib(fit, fname_spec, save=True)
+    _ = plotting.save_calib(fit, fname_spec, suffix=suffix, save=True)
 
     # rename posterior
     os.rename(f'pipes/posterior/{runName}/{runid}.h5', f'pipes/posterior/{runName}/{runName}_{suffix}.h5')
