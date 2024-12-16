@@ -6,14 +6,13 @@ from astropy.cosmology import Planck13 as cosmo
 from astropy.table import Table, hstack
 from grizli.utils import figure_timestamp
 from grizli.utils import MPL_COLORS
-from pipes_fitting_funcs import convert_cgs2mujy
-from pipes_fitting_funcs import convert_mujy2cgs
-from pipes_fitting_funcs import updated_filt_list
-from pipes_fitting_funcs import guess_calib
+
 import corner
 import bagpipes as pipes
 import copy
 import os
+
+from . import fitting
 
 # ------- PLOTTING & FORMATTING ------- #
 import matplotlib.pyplot as plt
@@ -127,11 +126,11 @@ def plot_spec_phot_data(fname_spec, fname_phot, z_spec, f_lam=False, show=False,
 
     # plotting spectrum
     if f_lam:
-        spec_fluxes = convert_mujy2cgs(spec_fluxes, spec_wavs*10000)
-        spec_efluxes = convert_mujy2cgs(spec_efluxes, spec_wavs*10000)
+        spec_fluxes = fitting.convert_mujy2cgs(spec_fluxes, spec_wavs*10000)
+        spec_efluxes = fitting.convert_mujy2cgs(spec_efluxes, spec_wavs*10000)
         
-        phot_fluxes = convert_mujy2cgs(phot_fluxes, phot_wavs*10000)
-        phot_efluxes = convert_mujy2cgs(phot_efluxes, phot_wavs*10000)
+        phot_fluxes = fitting.convert_mujy2cgs(phot_fluxes, phot_wavs*10000)
+        phot_efluxes = fitting.convert_mujy2cgs(phot_efluxes, phot_wavs*10000)
 
     fig,ax = plt.subplots(figsize=(10,4.5))
 
@@ -265,19 +264,19 @@ def plot_fitted_spectrum(fit, fname_spec, z_spec, f_lam=False, show=False, save=
     phot_fluxes_model_hi = (phot_post[:,2])[phot_flux_mask]
 
     if not f_lam:
-        spec_fluxes = convert_cgs2mujy(spec_fluxes, wavs*10000)
-        spec_efluxes = convert_cgs2mujy(spec_efluxes, wavs*10000)
+        spec_fluxes = fitting.convert_cgs2mujy(spec_fluxes, wavs*10000)
+        spec_efluxes = fitting.convert_cgs2mujy(spec_efluxes, wavs*10000)
 
-        spec_fluxes_model = convert_cgs2mujy(spec_fluxes_model, wavs*10000)
-        spec_fluxes_model_lo = convert_cgs2mujy(spec_fluxes_model_lo, wavs*10000)
-        spec_fluxes_model_hi = convert_cgs2mujy(spec_fluxes_model_hi, wavs*10000)
+        spec_fluxes_model = fitting.convert_cgs2mujy(spec_fluxes_model, wavs*10000)
+        spec_fluxes_model_lo = fitting.convert_cgs2mujy(spec_fluxes_model_lo, wavs*10000)
+        spec_fluxes_model_hi = fitting.convert_cgs2mujy(spec_fluxes_model_hi, wavs*10000)
 
-        phot_fluxes = convert_cgs2mujy(phot_fluxes, phot_wavs*10000)
-        phot_efluxes = convert_cgs2mujy(phot_efluxes, phot_wavs*10000)
+        phot_fluxes = fitting.convert_cgs2mujy(phot_fluxes, phot_wavs*10000)
+        phot_efluxes = fitting.convert_cgs2mujy(phot_efluxes, phot_wavs*10000)
 
-        phot_fluxes_model = convert_cgs2mujy(phot_fluxes_model, phot_wavs*10000)
-        phot_fluxes_model_lo = convert_cgs2mujy(phot_fluxes_model_lo, phot_wavs*10000)
-        phot_fluxes_model_hi = convert_cgs2mujy(phot_fluxes_model_hi, phot_wavs*10000)
+        phot_fluxes_model = fitting.convert_cgs2mujy(phot_fluxes_model, phot_wavs*10000)
+        phot_fluxes_model_lo = fitting.convert_cgs2mujy(phot_fluxes_model_lo, phot_wavs*10000)
+        phot_fluxes_model_hi = fitting.convert_cgs2mujy(phot_fluxes_model_hi, phot_wavs*10000)
     
     # plotting spectrum
     fig,ax = plt.subplots(figsize=(10,4.5))
@@ -588,7 +587,7 @@ def plot_calib(fit, fname_spec, z_spec, show=False, save=False, plot_xlims=None)
     ax = plt.subplot()
 
     ID = int(fit.galaxy.ID)
-    _, _, _ = guess_calib(ID, z_spec, plot=True)
+    _, _, _ = fitting.guess_calib(ID, z_spec, plot=True)
 
     fit.posterior.get_advanced_quantities()
 
@@ -708,7 +707,7 @@ def save_posterior_sample_dists(fit, fname_spec, save=False):
 
     # number of photometric filters
     id = int(fit.galaxy.ID)
-    filt_list = updated_filt_list(id) # list of valid filters
+    filt_list = fitting.updated_filt_list(id) # list of valid filters
     filt_num = len(filt_list)
 
     phot_cols.add_columns([filt_num], indexes=[-1], names=['filt_num'])
