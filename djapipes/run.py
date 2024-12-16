@@ -6,6 +6,7 @@ from astropy.io import fits
 from astropy.cosmology import Planck13 as cosmo
 
 import os
+import grizli.utils
 
 from . import database
 from . import fitting
@@ -229,7 +230,13 @@ def run_pipes_on_dja_spec(spec_name, suffix='', sfh="continuity", n_age_bins=10,
     runid = runName.split('_')[-1]
 
     print(runid, runName)
-
+    
+    ##############
+    # temp catalog, though not clear why this needs to be a catalog file at all
+    row = [runid, runName]
+    tab = grizli.utils.GTable(names=["id", "fname"], rows=[row])
+    tab.write("spec_cat_temp.csv", overwrite=True)
+    
     # spectrum and photometry filenames
     fname_spec = runName+'.spec.fits'
     fname_phot = runName+'.phot.cat'

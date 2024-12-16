@@ -110,7 +110,7 @@ def updated_filt_list(ID):
 
     id = int(ID)
 
-    speclist_cat = Table.read('spec_cat_temp.fits', format='fits')
+    speclist_cat = Table.read('spec_cat_temp.csv', format='csv')
 
     fname_phot_out = speclist_cat[speclist_cat["id"]==id]["fname"][0]+'.phot.cat'
     phot_tab = Table.read(f'files/{fname_phot_out}', format='ascii.commented_header')
@@ -292,7 +292,7 @@ def load_phot(ID):
 
     id = int(ID)
 
-    speclist_cat = Table.read('spec_cat_temp.fits', format='fits')
+    speclist_cat = Table.read('spec_cat_temp.csv', format='csv')
 
     fname_phot_out = speclist_cat[speclist_cat["id"]==id]["fname"][0]+'.phot.cat'
     phot_tab = Table.read(f'files/{fname_phot_out}', format='ascii.commented_header')
@@ -407,7 +407,7 @@ def load_spec(ID):
 
     id = int(ID)
 
-    speclist_cat = Table.read('spec_cat_temp.fits', format='fits')
+    speclist_cat = Table.read('spec_cat_temp.csv', format='csv')
 
     fname_spec_out = speclist_cat[speclist_cat["id"]==id]["fname"][0]+'.spec.fits'
     spec_tab = Table.read(f'files/{fname_spec_out}', hdu=1)

@@ -1,5 +1,9 @@
 working_directory/notebooks/__pycache__/
+working_directory/notebooks/spec_cat_temp.csv
+
 djapipes/version.py
+working_directory/notebooks/files/*
+working_directory/notebooks/pipes/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

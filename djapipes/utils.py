@@ -2,6 +2,15 @@ import os
 import numpy as np
 from astropy.table import Table
 
+def preferred_catalogs():
+    """
+    Get ordered list of preferred photometric catalogs
+    """
+    data_path = os.path.join(os.path.dirname(__file__), "data/photcats_latest.csv")
+    photcats_latest = Table.read(data_path, format="csv")
+    return photcats_latest
+
+
 def path_to_filters():
     """
     Get path to the filters directory inside the module
