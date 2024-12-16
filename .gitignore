@@ -1,4 +1,5 @@
 working_directory/notebooks/__pycache__/
+djapipes/version.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
