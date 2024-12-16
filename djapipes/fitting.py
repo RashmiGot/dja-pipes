@@ -1,10 +1,14 @@
 # ------- LIBRARIES ------ #
+import os
+
 from astropy.table import Table
 import numpy as np
 import grizli.utils as utils
 import eazy
 import msaexp.spectrum 
 # from msaexp import spectrum
+
+from . import utils as djautils
 
 import matplotlib.pyplot as plt
 
@@ -112,11 +116,23 @@ def updated_filt_list(ID):
     phot_tab = Table.read(f'files/{fname_phot_out}', format='ascii.commented_header')
 
     # jwst filter list
-    filt_list = np.loadtxt("../filters/filt_list.txt", dtype="str")
-
+    # filt_list = np.loadtxt(
+    #     os.path.join(djautils.path_to_filters(), "filt_list.txt"),
+    #     dtype="str"
+    # )
+    
+    filt_list = djautils.read_filter_list("filt_list.txt")
+    
     # extract fluxes from cat (muJy); '{filter}_tot_1'==0.5'' aperture
-    flux_colNames = [filt_list_i.split('/')[-1].split('.')[0]+'_tot_1' for filt_list_i in filt_list]
-    eflux_colNames = [filt_list_i.split('/')[-1].split('.')[0]+'_etot_1' for filt_list_i in filt_list]
+    flux_colNames = [
+        os.path.basename(filt_list_i).split('.')[0]+'_tot_1'
+        for filt_list_i in filt_list
+    ]
+
+    eflux_colNames = [
+        os.path.basename(filt_list_i).split('.')[0]+'_etot_1'
+        for filt_list_i in filt_list
+    ]
 
     fluxes_muJy = np.lib.recfunctions.structured_to_unstructured(np.array(phot_tab[list(flux_colNames)]))[0]
     efluxes_muJy = np.lib.recfunctions.structured_to_unstructured(np.array(phot_tab[list(eflux_colNames)]))[0]
@@ -282,14 +298,26 @@ def load_phot(ID):
     phot_tab = Table.read(f'files/{fname_phot_out}', format='ascii.commented_header')
 
     # jwst filter list
-    filt_list = np.loadtxt("../filters/filt_list.txt", dtype="str")
+    # filt_list = np.loadtxt("../filters/filt_list.txt", dtype="str")
+    filt_list = djautils.read_filter_list("filt_list.txt")
 
     # extract fluxes from cat (muJy); '{filter}_tot_1'==0.5'' aperture
-    flux_colNames = [filt_list_i.split('/')[-1].split('.')[0]+'_tot_1' for filt_list_i in filt_list]
-    eflux_colNames = [filt_list_i.split('/')[-1].split('.')[0]+'_etot_1' for filt_list_i in filt_list]
+    # flux_colNames = [filt_list_i.split('/')[-1].split('.')[0]+'_tot_1' for filt_list_i in filt_list]
+    # eflux_colNames = [filt_list_i.split('/')[-1].split('.')[0]+'_etot_1' for filt_list_i in filt_list]
+
+    flux_colNames = [
+        os.path.basename(filt_list_i).split('.')[0]+'_tot_1'
+        for filt_list_i in filt_list
+    ]
+
+    eflux_colNames = [
+        os.path.basename(filt_list_i).split('.')[0]+'_etot_1'
+        for filt_list_i in filt_list
+    ]
 
     # zeropoints table
-    zpoints = Table.read('zeropoints.csv', format='csv')
+    zpoints = djautils.load_zeropoints()
+    
     zpoints_sub = zpoints[zpoints["root"]==phot_tab["file_phot"][0].split('_phot')[0]]
     zp_array = [zpoints_sub[zpoints_sub["f_name"]==flux_colName]["zp"][0] for flux_colName in flux_colNames]
 

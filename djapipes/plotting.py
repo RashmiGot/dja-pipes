@@ -13,6 +13,7 @@ import copy
 import os
 
 from . import fitting
+from . import utils as djautils
 
 # ------- PLOTTING & FORMATTING ------- #
 import matplotlib.pyplot as plt
@@ -100,14 +101,34 @@ def plot_spec_phot_data(fname_spec, fname_phot, z_spec, f_lam=False, show=False,
     
 
     # jwst filter list
-    filt_list = np.loadtxt("../filters/filt_list.txt", dtype="str")
+    # filt_list = np.loadtxt("../filters/filt_list.txt", dtype="str")
+    #
+    # # extract fluxes from cat
+    # flux_colNames = [filt_list_i.split('/')[-1].split('.')[0]+'_tot_1' for filt_list_i in filt_list]
+    # eflux_colNames = [filt_list_i.split('/')[-1].split('.')[0]+'_etot_1' for filt_list_i in filt_list]
+    #
+    # # zeropoints table
+    # zpoints = Table.read('zeropoints.csv', format='csv')
 
-    # extract fluxes from cat
-    flux_colNames = [filt_list_i.split('/')[-1].split('.')[0]+'_tot_1' for filt_list_i in filt_list]
-    eflux_colNames = [filt_list_i.split('/')[-1].split('.')[0]+'_etot_1' for filt_list_i in filt_list]
+    filt_list = djautils.read_filter_list("filt_list.txt")
+
+    # extract fluxes from cat (muJy); '{filter}_tot_1'==0.5'' aperture
+    # flux_colNames = [filt_list_i.split('/')[-1].split('.')[0]+'_tot_1' for filt_list_i in filt_list]
+    # eflux_colNames = [filt_list_i.split('/')[-1].split('.')[0]+'_etot_1' for filt_list_i in filt_list]
+
+    flux_colNames = [
+        os.path.basename(filt_list_i).split('.')[0]+'_tot_1'
+        for filt_list_i in filt_list
+    ]
+
+    eflux_colNames = [
+        os.path.basename(filt_list_i).split('.')[0]+'_etot_1'
+        for filt_list_i in filt_list
+    ]
 
     # zeropoints table
-    zpoints = Table.read('zeropoints.csv', format='csv')
+    zpoints = djautils.load_zeropoints()
+    
     zpoints_sub = zpoints[zpoints["root"]==phot_tab["file_phot"][0].split('_phot')[0]]
     zp_array = [zpoints_sub[zpoints_sub["f_name"]==flux_colName]["zp"][0] for flux_colName in flux_colNames]
     
