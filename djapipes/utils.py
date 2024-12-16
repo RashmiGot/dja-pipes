@@ -1,5 +1,6 @@
 import os
 import numpy as np
+from astropy.table import Table
 
 def path_to_filters():
     """
@@ -21,4 +22,15 @@ def read_filter_list(file="filt_list.txt"):
     
     lines = [os.path.join(path_, file.strip()) for file in lines]
     return np.array(lines)
+
+
+def load_zeropoints(file="zeropoints.csv"):
+    """
+    Load zeropoints table
+    """
+    zpoints = Table.read(
+        os.path.join(path_to_filters(), file),
+        format='csv'
+    )
+    return zpoints
     
