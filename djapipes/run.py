@@ -204,8 +204,8 @@ def fitting_params(runid, z_spec, sfh="continuity", n_age_bins=10, scale_disp=1.
     return(fit_instructions)
 
 
-def run_pipes_on_dja_spec(file_spec, sfh="continuity", n_age_bins=10, scale_disp=1.3, dust_type="kriek", 
-                   use_msa_resamp=False, fit_agn=False, fit_dla=False, fit_mlpoly=False):
+def run_pipes_on_dja_spec(file_spec="rubies-egs61-v3_prism-clear_4233_42328.spec.fits", sfh="continuity", n_age_bins=10, scale_disp=1.3, dust_type="kriek", 
+                   use_msa_resamp=False, fit_agn=False, fit_dla=False, fit_mlpoly=False, **kwargs):
     """
     Runs bagpipes on spectrum from DJA AWS database, saves posteriors as .h5 files and plots as .pdf files
     
