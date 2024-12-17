@@ -204,8 +204,10 @@ def fitting_params(runid, z_spec, sfh="continuity", n_age_bins=10, scale_disp=1.
     return(fit_instructions)
 
 
-def run_pipes_on_dja_spec(file_spec="rubies-egs61-v3_prism-clear_4233_42328.spec.fits", sfh="continuity", n_age_bins=10, scale_disp=1.3, dust_type="kriek", 
-                   use_msa_resamp=False, fit_agn=False, fit_dla=False, fit_mlpoly=False, **kwargs):
+def run_pipes_on_dja_spec(file_spec="rubies-egs61-v3_prism-clear_4233_42328.spec.fits",
+                          valid_threshold=400,
+                          sfh="continuity", n_age_bins=10, scale_disp=1.3, dust_type="kriek",
+                          use_msa_resamp=False, fit_agn=False, fit_dla=False, fit_mlpoly=False, **kwargs):
     """
     Runs bagpipes on spectrum from DJA AWS database, saves posteriors as .h5 files and plots as .pdf files
     
@@ -250,7 +252,7 @@ def run_pipes_on_dja_spec(file_spec="rubies-egs61-v3_prism-clear_4233_42328.spec
     database.pull_spec_from_db(fname_spec, filePath)
 
     # checks spectrum for missing flux datapoints
-    num_valid, is_valid = fitting.check_spec(ID=runid, valid_threshold=400)
+    num_valid, is_valid = fitting.check_spec(ID=runid, valid_threshold=valid_threshold)
 
     if not is_valid:
         print("Spectrum not valid")
