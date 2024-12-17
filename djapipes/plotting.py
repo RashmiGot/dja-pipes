@@ -452,7 +452,10 @@ def plot_fitted_sfh(fit, fname_spec, z_spec, suffix, show=False, save=False):
 
     ymin, ymax = ax.get_ylim()
     ax.vlines(age_of_universe_lim, ymin=ymin, ymax=ymax, color='grey', ls='-')
-    ax.text(0.97*age_of_universe_lim, 0.5*ymax, "Age of Universe at $z=3$", fontsize=12, rotation=90)
+    if z_spec<3:
+        ax.text(0.97*age_of_universe_lim, 0.5*ymax, "Age of Universe at $z=1$", fontsize=12, rotation=90)
+    else:
+        ax.text(0.97*age_of_universe_lim, 0.5*ymax, "Age of Universe at $z=3$", fontsize=12, rotation=90)
     ax.vlines(age_of_universe, ymin=ymin, ymax=ymax, color='grey', ls='--')
     # ax.text(age_of_universe-0.03*age_of_universe_lim, 0.5*ymax, "Age of Universe at $z_{\\rm spec}$", fontsize=12, rotation=90)
     
