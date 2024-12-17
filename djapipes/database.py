@@ -4,6 +4,7 @@ import os
 
 from astropy.table import Table
 
+from . import utils as djautils
 
 # --------------------------------------------------------------
 # ---------------------------------- PULL SPECTRUM FROM DATABASE
@@ -60,7 +61,8 @@ def pull_phot_from_db(fname_spec, fname_phot, file_path='files/'):
     nrp_gr_match = Table.read(url+fname_spec, format='csv')
 
     # choose best photometry
-    photcats_latest = Table.read("photcats_latest.csv", format="csv")
+    photcats_latest = djautils.preferred_catalogs()
+    
     matching_index = []
     for i in range(len(nrp_gr_match)):
         try:
