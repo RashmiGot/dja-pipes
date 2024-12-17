@@ -274,6 +274,39 @@ def guess_calib(ID, z, plot=False):
     return lsq_coeffs[0], param_uncertainties, covar
 
 
+def check_spec(ID, valid_threshold=400):
+    """
+    Searches for valid flux datapoints in spectrum
+    
+    Parameters
+    ----------
+    ID : number assigned to fitting run, format=int
+
+    Returns
+    -------
+    num_valid : number of valid datapoints in spectrum, format=int
+    is_valid : True/False depending on whether spectrum has breaks, format=bool
+    """
+
+    id = int(ID)
+
+    speclist_cat = Table.read('spec_cat_temp.csv', format='csv')
+    fname_spec = speclist_cat[speclist_cat["id"]==id]["fname"][0]+'.spec.fits'
+    file_path='files/'
+
+    msaexp_spectrum = msaexp.spectrum.read_spectrum(f"{file_path}{fname_spec}")
+    valid = msaexp_spectrum["valid"]
+
+    num_valid = sum(valid*1)
+
+    if num_valid<valid_threshold:
+        is_valid=False
+    else:
+        is_valid=True
+
+    return num_valid, is_valid
+
+
 # --------------------------------------------------------------
 # ---------------------------------------------- LOAD PHOTOMETRY
 # --------------------------------------------------------------

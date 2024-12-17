@@ -249,6 +249,13 @@ def run_pipes_on_dja_spec(file_spec="rubies-egs61-v3_prism-clear_4233_42328.spec
     # pull spectrum and photometry from the aws database
     database.pull_spec_from_db(fname_spec, filePath)
 
+    # checks spectrum for missing flux datapoints
+    num_valid, is_valid = fitting.check_spec(ID=runid, valid_threshold=400)
+
+    if not is_valid:
+        print("Spectrum not valid")
+        return None
+
     try:
         database.pull_phot_from_db(fname_spec, fname_phot, filePath)
     except IndexError:
