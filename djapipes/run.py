@@ -11,6 +11,7 @@ import grizli.utils
 from . import database
 from . import fitting
 from . import plotting
+from . import utils as djautils
 
 # check if 'files' directory exists, else make one
 if not os.path.exists("./files"):
@@ -139,15 +140,17 @@ def fitting_params(runid, z_spec, sfh="continuity", n_age_bins=10, scale_disp=1.
         fit_instructions["agn"] = agn
     
     ## ---------- ## tight redshift prior around z_spec
-    fit_instructions["redshift"] = (z_spec - 0.005*(1+z_spec), z_spec + 0.005*(1+z_spec))
+    fit_instructions["redshift"] = (
+        z_spec - 0.005*(1+z_spec),
+        z_spec + 0.005*(1+z_spec)
+    )
+
     fit_instructions["redshift_prior"] = "Gaussian"
     fit_instructions["redshift_prior_mu"] = z_spec
     fit_instructions["redshift_prior_sigma"] = 0.001 * (1+z_spec)
 
     ## ---------- ## jwst prism resolution curve
-    hdul = fits.open("jwst_nirspec_prism_disp.fits")
-    resData = np.c_[10000*hdul[1].data["WAVELENGTH"], hdul[1].data["R"]*scale_disp]
-    fit_instructions["R_curve"] = resData
+    fit_instructions["R_curve"] = djautils.load_prism_dispersion(scale_disp=scale_disp)
 
     ## ---------- ## boolean for using msa resampling
     fit_instructions["use_msa_resamp"] = use_msa_resamp
@@ -201,15 +204,14 @@ def fitting_params(runid, z_spec, sfh="continuity", n_age_bins=10, scale_disp=1.
     return(fit_instructions)
 
 
-def run_pipes_on_dja_spec(spec_name, suffix='', sfh="continuity", n_age_bins=10, scale_disp=1.3, dust_type="kriek", 
+def run_pipes_on_dja_spec(file_spec, sfh="continuity", n_age_bins=10, scale_disp=1.3, dust_type="kriek", 
                    use_msa_resamp=False, fit_agn=False, fit_dla=False, fit_mlpoly=False):
     """
     Runs bagpipes on spectrum from DJA AWS database, saves posteriors as .h5 files and plots as .pdf files
     
     Parameters
     ----------
-    spec_name : DJA spectrum name, format=str
-    suffix : empty string to attach to output filenames, format=str
+    file_spec : DJA spectrum name, format=str
 
     Returns
     -------
@@ -217,7 +219,7 @@ def run_pipes_on_dja_spec(spec_name, suffix='', sfh="continuity", n_age_bins=10,
     """
 
     # name of bagpipes run
-    runName = spec_name.split('.spec.fits')[0]
+    runName = file_spec.split('.spec.fits')[0]
     
     # make pipes folders if they don't already exist
     pipes.utils.make_dirs(run=runName)
@@ -275,10 +277,13 @@ def run_pipes_on_dja_spec(spec_name, suffix='', sfh="continuity", n_age_bins=10,
                                       use_msa_resamp=use_msa_resamp, fit_agn=fit_agn, fit_dla=fit_dla, fit_mlpoly=fit_mlpoly)
 
     # check if posterior file exists
-    suffix = suffix+sfh+'_'+dust_type
-
-    if os.path.isfile(f'pipes/posterior/{runName}/{runName}_{suffix}.h5'):
-        os.rename(f'pipes/posterior/{runName}/{runName}_{suffix}.h5', f'pipes/posterior/{runName}/{runid}.h5')
+    suffix = sfh + '_' + dust_type
+    
+    full_posterior_file = f'pipes/posterior/{runName}/{runName}_{suffix}.h5'
+    run_posterior_file = f'pipes/posterior/{runName}/{runid}.h5'
+    
+    if os.path.isfile(full_posterior_file):
+        os.rename(full_posterior_file, run_posterior_file)
 
     # making fit object
     fit = pipes.fit(galaxy, fit_instructions, run=runName)
@@ -314,6 +319,6 @@ def run_pipes_on_dja_spec(spec_name, suffix='', sfh="continuity", n_age_bins=10,
     _ = plotting.save_calib(fit, fname_spec, suffix=suffix, save=True)
 
     # rename posterior
-    os.rename(f'pipes/posterior/{runName}/{runid}.h5', f'pipes/posterior/{runName}/{runName}_{suffix}.h5')
+    os.rename(run_posterior_file, full_posterior_file)
 
     return fit
