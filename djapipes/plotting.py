@@ -678,7 +678,7 @@ def save_posterior_sample_dists(fit, fname_spec, suffix, save=False):
     ----------
     fit : fit object from BAGPIPES (where fit = pipes.fit(galaxy, fit_instructions))
     fname_spec : filename of spectrum e.g. 'rubies-uds3-v3_prism-clear_4233_62812.spec.fits', format=str
-    suffix = string containing sfh and dust information to be appended to output file name, format=str
+    suffix : string containing sfh and dust information to be appended to output file name, format=str
     save : specifies wherether or not to save the table, format=bool
 
     Returns
