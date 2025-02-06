@@ -13,6 +13,7 @@ import copy
 import os
 
 from . import fitting
+from . import database
 from . import utils as djautils
 
 # ------- PLOTTING & FORMATTING ------- #
@@ -246,22 +247,15 @@ def plot_fitted_spectrum(fit, fname_spec, z_spec, suffix, f_lam=False, show=Fals
     """
 
     fit.posterior.get_advanced_quantities()
-
-    ymax = 1.05*np.max(fit.galaxy.spectrum[:, 1])
-    
-    y_scale = float(int(np.log10(ymax))-1)
     
     wavs = fit.galaxy.spectrum[:, 0]/10000
     
     spec_post = np.copy(fit.posterior.samples["spectrum"])
     
-    # if "calib" in list(fit.posterior.samples):
-    #     spec_post /= fit.posterior.samples["calib"]
-    
     if "noise" in list(fit.posterior.samples):
         spec_post += fit.posterior.samples["noise"]
     
-    post = np.percentile(spec_post, (16, 50, 84), axis=0).T#*10**-y_scale
+    post = np.percentile(spec_post, (16, 50, 84), axis=0).T
 
     calib_50 = np.percentile(fit.posterior.samples["calib"], 50, axis=0).T
 
@@ -723,7 +717,6 @@ def save_posterior_sample_dists(fit, fname_spec, suffix, save=False):
     # hstack tables
     post_tab = hstack([post_tab_temp,post_tab_add])
 
-    ### saving posterior to csv table ###
     fname = fname_spec.split('.spec')[0]
     fname_phot = fname + '.phot.cat'
 
@@ -737,7 +730,21 @@ def save_posterior_sample_dists(fit, fname_spec, suffix, save=False):
 
     phot_cols.add_columns([filt_num], indexes=[-1], names=['filt_num'])
 
-    tab_stacked = hstack([phot_cols, post_tab])
+    # calculating and tabulating sf timescales
+    timescales=[10,20,50,80,90]
+    z_spec = database.pull_zspec_from_db(f"{fname}.spec.fits")
+    timescale_arr = calc_sf_timescales(fit, z_spec, timescales=timescales)
+    post_ext = ['_16', '_50', '_84']
+    timescales_names = []
+    [[timescales_names.append(f"t{timescales_i}{post_ext_j}") for post_ext_j in post_ext] for timescales_i in timescales]
+    timescales_tab = Table(data=timescale_arr.flatten(), names=timescales_names)
+
+    # calculating and tabulating balmber and d4000 breaks
+    break_values = calc_BB_and_D4000(fname_spec, z_spec)
+    break_tab = Table(data=np.array(break_values), names=["bb", "bb_err", "d4000", "d4000_err"])
+
+    ### saving posterior to csv table ###
+    tab_stacked = hstack([phot_cols, post_tab, timescales_tab, break_tab])
 
     if not os.path.exists("./pipes/cats/" + fit.run):
         os.mkdir("./pipes/cats/" + fit.run)
@@ -855,5 +862,130 @@ def add_lines_msa(z_spec):
             )
             
 
+
+def calc_sf_timescales(fit, z_spec, timescales=[10,20,50,80,90]):
+    """
+    Calculates SF timescales t10, t50, t90
+    tX: the look-back time at which X% of the stellar mass was already formed (Belli et al. 2019)
+    
+    Parameters
+    ----------
+    fit : fit object from BAGPIPES (where fit = pipes.fit(galaxy, fit_instructions))
+    z_spec : spectroscopic redshift, format=float
+    timescales : sequence of percentage timescales to calculate, i.e. [X, Y, Z] to calculate [tX, tY, tZ], format=list
+
+    Returns
+    -------
+    t_arr : array of timescales in the order [t10, t50, t90], format=numpy array
+    """
+
+    age_of_universe = cosmo.age(z_spec).value # universe age
+
+    # SFH ages [Gyr]
+    ages = fit.posterior.sfh.ages*1e-9
+    ages_mask = ages<age_of_universe
+    ages_interp = np.arange(np.min(ages[ages_mask]), np.max(ages[ages_mask]),0.0005)
+
+    # SFH posterior [M_sol/yr]
+    sfh_post = fit.posterior.samples["sfh"]
+
+    timescale_ages = np.zeros((len(sfh_post), len(timescales)))
+    for i in range(len(sfh_post)):
+        sfh_interp = np.interp(ages_interp, ages, sfh_post[i])
+
+        Mstar_sum = np.cumsum(sfh_interp*ages_interp*1e9) # stellar mass as func. of lookback time
+        Mstar_totformed = np.sum(sfh_interp*ages_interp*1e9) # total formed mass
+        Mstar_percs = 0.01*np.array(timescales)*Mstar_totformed
+        indices = [np.abs(Mstar_sum - M).argmin() for M in Mstar_percs]
+
+        timescale_ages[i] = ages_interp[indices] # Gyr
+
+    timescale_arr = np.zeros((len(timescales),3))
+    for j in range(len(timescales)):
+        timescale_arr[j] = np.percentile(timescale_ages[:,j], (16, 50, 84), axis=0).T
+
+    return timescale_arr
+
+
+def weighted_avg(values, errors):
+    """
+    Calculates weighted mean of array "values" with corresponding uncertainties "errors"
+    
+    Parameters
+    ----------
+    values : format=numpy array
+    errors : format=numpy array
+
+    Returns
+    -------
+    mean, err : weighted mean and uncertainty, format=float
+    """
+    
+    values = np.array(values)
+    errors = np.array(errors)
+    mean = (np.sum((values/errors**2))/(np.sum(1/errors**2))) # from def 4.6 Barlow
+    var = (1/(np.sum(1/errors**2)))
+    err = np.sqrt(var)
+    
+    return mean, err
+
+def calc_flux_ratio(spec_wavs, spec_fluxes, spec_efluxes, l1, l2, l3, l4):
+    """
+    Calculates flux ratio for a spectrum between wavs of l1->l2 to l3->l4
+    
+    Parameters
+    ----------
+    spec_wavs : wavelength array in microns
+    spec_fluxes : flux array in microJansky
+    spec_efluxes : flux errors array in microJansky
+    l1, l2, l3, l4 : wav limits in Angstrom, format=float
+
+    Returns
+    -------
+    ratio, ratio_err : ratio and error on ratio, format=float
+    """
+
+    blue_idx = (spec_wavs >= l1) & (spec_wavs < l2)
+    red_idx = (spec_wavs >= l3) & (spec_wavs < l4)
+
+    if blue_idx is None or red_idx is None:
+        raise ValueError("Spectrum does not cover the break.")
+
+    blue_mean, blue_err = weighted_avg(spec_fluxes[blue_idx], spec_efluxes[blue_idx])
+    red_mean, red_err = weighted_avg(spec_fluxes[red_idx], spec_efluxes[red_idx])
+    
+    ratio = red_mean / blue_mean
+    ratio_err = np.abs(ratio) * np.sqrt((blue_err/blue_mean)**2 + (red_err/red_mean)**2)
+
+    return(ratio, ratio_err)
+
+def calc_BB_and_D4000(fname_spec, z_spec):
+    """
+    Calculates Balmer break and D4000 break 
+    
+    Parameters
+    ----------
+    fname_spec : filename of spectrum e.g. 'rubies-uds3-v3_prism-clear_4233_62812.spec.fits', format=str
+    z_spec : spectroscopic redshift, format=float
+
+    Returns
+    -------
+    bb, bb_err, d4000, d4000_err : balmer break value and uncertainty, d4000 break value and uncertainty, format=float
+    """
+
+    # load spectrum
+    spec_tab = Table.read(f'files/{fname_spec}', hdu=1)
+    spec_fluxes = spec_tab['flux']
+    spec_efluxes = spec_tab['err']
+    spec_wavs = spec_tab['wave'] * 1e4 / (1+z_spec)
+
+    # balmer break (defn from Wang+24 : https://iopscience.iop.org/article/10.3847/2041-8213/ad55f7/pdf,
+    #               also in Weibel+25 : https://arxiv.org/pdf/2409.03829)
+    bb, bb_err = calc_flux_ratio(spec_wavs, spec_fluxes, spec_efluxes, 3620, 3720, 4000, 4100)
+    
+    # d4000 (defn from Bruzual 1973 : https://articles.adsabs.harvard.edu/pdf/1983ApJ...273..105B)
+    d4000, d4000_err = calc_flux_ratio(spec_wavs, spec_fluxes, spec_efluxes, 3750, 3950, 4050, 4250)
+
+    return bb, bb_err, d4000, d4000_err
 
 
