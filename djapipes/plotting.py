@@ -4,6 +4,8 @@
 import numpy as np
 from astropy.cosmology import Planck13 as cosmo
 from astropy.table import Table, hstack
+from astropy import units as u
+import re
 from grizli.utils import figure_timestamp
 from grizli.utils import MPL_COLORS
 
@@ -863,6 +865,9 @@ def add_lines_msa(z_spec):
             
 
 
+# --------------------------------------------------------------
+# ------------------------------------ STAR-FORMATION TIMESCALES
+# --------------------------------------------------------------
 def calc_sf_timescales(fit, z_spec, timescales=[10,20,50,80,90]):
     """
     Calculates SF timescales t10, t50, t90
@@ -907,6 +912,10 @@ def calc_sf_timescales(fit, z_spec, timescales=[10,20,50,80,90]):
     return timescale_arr
 
 
+
+# --------------------------------------------------------------
+# --------------------------------------------- WEIGHTED AVERAGE
+# --------------------------------------------------------------
 def weighted_avg(values, errors):
     """
     Calculates weighted mean of array "values" with corresponding uncertainties "errors"
@@ -929,6 +938,10 @@ def weighted_avg(values, errors):
     
     return mean, err
 
+
+# --------------------------------------------------------------
+# --------------------------------------- FLUX RATIO CALCULATION
+# --------------------------------------------------------------
 def calc_flux_ratio(spec_wavs, spec_fluxes, spec_efluxes, l1, l2, l3, l4):
     """
     Calculates flux ratio for a spectrum between wavs of l1->l2 to l3->l4
@@ -959,6 +972,10 @@ def calc_flux_ratio(spec_wavs, spec_fluxes, spec_efluxes, l1, l2, l3, l4):
 
     return(ratio, ratio_err)
 
+
+# --------------------------------------------------------------
+# ---------------------------------------- BALMER & D4000 BREAKS
+# --------------------------------------------------------------
 def calc_BB_and_D4000(fname_spec, z_spec):
     """
     Calculates Balmer break and D4000 break 
@@ -989,3 +1006,24 @@ def calc_BB_and_D4000(fname_spec, z_spec):
     return bb, bb_err, d4000, d4000_err
 
 
+
+# --------------------------------------------------------------
+# -------------------------------- TABULATE EMISSION LINE FLUXES
+# --------------------------------------------------------------
+def save_modelled_line_fluxes(fit, fname_spec, suffix, save=False):
+
+    line_fluxes = fit.posterior.model_galaxy.line_fluxes
+    keys = line_fluxes.keys()
+    keys_colnames = [re.sub('\s+', '_', keys_i) for keys_i in list(keys)]
+    line_flux_values = np.array(list(line_fluxes.values()))
+    linefluxes_tab = Table(data=line_flux_values, names=keys_colnames, units=[u.erg/u.second/u.centimeter/u.centimeter] * len(keys_colnames))
+
+    specname_tab = Table(np.array([fname_spec]), names=["file_spec"])
+
+    tab = hstack([specname_tab, linefluxes_tab])
+    
+    fname = fname_spec.split('.spec')[0]
+    tabpath = "pipes/cats/" + fit.run + "/" + fname + '_' + suffix + '_postlinefluxes.csv'
+    tab.write(tabpath, format='csv', overwrite=True)
+
+    return None

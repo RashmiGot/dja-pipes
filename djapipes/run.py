@@ -305,28 +305,30 @@ def run_pipes_on_dja_spec(file_spec="rubies-egs61-v3_prism-clear_4233_42328.spec
     ##################################
 
     if make_plots:
-        # fitted model
+        # plot fitted model
         _, plotlims_flam = plotting.plot_fitted_spectrum(fit, fname_spec, z_spec=z_spec, suffix=suffix,
                                                         f_lam=True, save=True, return_plotlims=True)
         _, plotlims_fnu = plotting.plot_fitted_spectrum(fit, fname_spec, z_spec=z_spec, suffix=suffix,
                                                         f_lam=False, save=True, return_plotlims=True)
-        # # save data to plot
+        # # plot data
         _ = plotting.plot_spec_phot_data(fname_spec, fname_phot, z_spec=z_spec, suffix=suffix,
                                         f_lam=True, show=False, save=True, run=runName, plotlims=plotlims_flam)
         _ = plotting.plot_spec_phot_data(fname_spec, fname_phot, z_spec=z_spec, suffix=suffix,
                                         f_lam=False, show=False, save=True, run=runName, plotlims=plotlims_fnu)
-        # # star-formation history
+        # # plot star-formation history
         _ = plotting.plot_fitted_sfh(fit, fname_spec, z_spec=z_spec, suffix=suffix, save=True)
-        # # posterior corner plot
+        # # plot posterior corner plot
         _ = plotting.plot_corner(fit, fname_spec, z_spec, fit_instructions, filt_list, suffix=suffix, save=True)
-        # # calibration curve
+        # # plot calibration curve
         _ = plotting.plot_calib(fit, fname_spec, z_spec=z_spec, suffix=suffix,
                                 save=True, plot_xlims=[plotlims_flam[0],plotlims_flam[1]])
 
-        # # saving posterior quantities to table
+        # # save posterior quantities to table
         _ = plotting.save_posterior_sample_dists(fit, fname_spec, suffix=suffix, save=True)
-        # # saving calib curve to table
+        # # save calib curve to table
         _ = plotting.save_calib(fit, fname_spec, suffix=suffix, save=True)
+        # # save modelled line fluxes to table
+        _ = plotting.save_modelled_line_fluxes(fit, fname_spec, suffix=suffix, save=True)
 
     # rename posterior
     os.rename(run_posterior_file, full_posterior_file)
