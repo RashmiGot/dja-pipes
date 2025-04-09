@@ -332,7 +332,8 @@ def load_phot(ID):
 
     # jwst filter list
     # filt_list = np.loadtxt("../filters/filt_list.txt", dtype="str")
-    filt_list = djautils.read_filter_list("filt_list.txt")
+    # filt_list = djautils.read_filter_list("filt_list.txt")
+    filt_list = updated_filt_list(id)
 
     # extract fluxes from cat (muJy); '{filter}_tot_1'==0.5'' aperture
     # flux_colNames = [filt_list_i.split('/')[-1].split('.')[0]+'_tot_1' for filt_list_i in filt_list]
@@ -455,6 +456,7 @@ def load_spec(ID):
 
     flux_muJy = np.array(spec_tab['flux'])
     fluxerr_muJy = np.array(spec_tab['err'])
+    fluxerr_muJy[np.invert(spec_tab['line_mask'])] = np.nanmean(fluxerr_muJy) * 1e3
     flux_cgs = convert_mujy2cgs(flux_muJy,spec_wavs)
     fluxerr_cgs = convert_mujy2cgs(fluxerr_muJy,spec_wavs)
 
@@ -497,6 +499,46 @@ def load_both(ID):
 
 
 
+# --------------------------------------------------------------
+# ------------------------------------------ MASK EMISSION LINES
+# --------------------------------------------------------------
 
+def mask_emission_lines(fname_spec, z_spec, file_path='files/', mask_lines=False, line_wavs=None, delta_lam=None):
+    """
+    Masks spectrum, writes spectrum to a fits file
+    
+    Parameters
+    ----------
+    fname_spec : filename of spectrum, e.g. 'rubies-uds3-v3_prism-clear_4233_62812.spec.fits', format=str
+    z_spec : spectroscopic redshift, format=float
+    file_path : path to folder in which outfile is stored, format=str
+    mask_lines : boolean to determine whether or not to mask lines, format=bool
+    line_wavs : array of emission line wavelengths in angstrom, format=numpy array
+    delta_lam : +-wavelength range to mask out in angstrom, format=float
+
+    Returns
+    -------
+    None
+    """
+
+    # spectrum
+    spec_tab = Table.read(f'{file_path}{fname_spec}', hdu=1)
+    spec_wavs = spec_tab['wave'] # in microns
+    
+    # making mask to identify regions around emission lines
+    line_mask = np.array([True]*len(spec_wavs))
+    if mask_lines:
+        for i in range(len(line_wavs)):
+            mask_i = (spec_wavs>(line_wavs[i]-delta_lam)/1e4*(1+z_spec)) & (spec_wavs<(line_wavs[i]+delta_lam)/1e4*(1+z_spec))
+            line_mask = line_mask & np.invert(mask_i)
+
+    # rewriting new spec table to original spectrum file
+    if "line_mask" in spec_tab.colnames:
+        spec_tab.replace_column("line_mask", line_mask)
+    elif "line_mask" not in spec_tab.colnames:
+        spec_tab.add_column(line_mask, index=-1, name="line_mask")
+    spec_tab.write(f'{file_path}{fname_spec}', format='fits', overwrite=True)
+
+    return None
 
 
