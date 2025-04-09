@@ -270,6 +270,8 @@ def plot_fitted_spectrum(fit, fname_spec, z_spec, suffix, f_lam=False, show=Fals
     spec_fluxes_model_lo = post[:,0]
     spec_fluxes_model_hi = post[:,2]
 
+    spec_residual = (spec_fluxes_model - spec_fluxes) / spec_efluxes
+
     phot_flux_mask = fit.galaxy.photometry[:,2]<1e90
 
     phot_wavs = (fit.galaxy.filter_set.eff_wavs/10000)[phot_flux_mask]
@@ -288,6 +290,8 @@ def plot_fitted_spectrum(fit, fname_spec, z_spec, suffix, f_lam=False, show=Fals
         spec_fluxes_model_lo = fitting.convert_cgs2mujy(spec_fluxes_model_lo, wavs*10000)
         spec_fluxes_model_hi = fitting.convert_cgs2mujy(spec_fluxes_model_hi, wavs*10000)
 
+        spec_residual = (spec_fluxes_model - spec_fluxes) / spec_efluxes
+
         phot_fluxes = fitting.convert_cgs2mujy(phot_fluxes, phot_wavs*10000)
         phot_efluxes = fitting.convert_cgs2mujy(phot_efluxes, phot_wavs*10000)
 
@@ -296,7 +300,8 @@ def plot_fitted_spectrum(fit, fname_spec, z_spec, suffix, f_lam=False, show=Fals
         phot_fluxes_model_hi = fitting.convert_cgs2mujy(phot_fluxes_model_hi, phot_wavs*10000)
     
     # plotting spectrum
-    fig,ax = plt.subplots(figsize=(10,4.5))
+    fig = plt.figure(1, figsize=(10,5.0))
+    ax = fig.add_axes((.1,.3,.85,.6))
 
     ax.hlines(y=0, xmin=wavs.min(), xmax=wavs.max(), lw=1.0, color='gainsboro', zorder=-1)
     
@@ -338,15 +343,31 @@ def plot_fitted_spectrum(fit, fname_spec, z_spec, suffix, f_lam=False, show=Fals
     ##################################
 
     add_lines_msa(z_spec=z_spec)
+
+    ##################################
+    # --------- RESIDUALS ---------- #
+    ##################################
+
+    ax_res = fig.add_axes((.1,.1,.85,.2))
+
+    ax_res.plot(wavs, spec_residual,
+                zorder=-1, color='firebrick', alpha=0.7, lw=1.)
+    
+    ax_res.hlines(y=0, xmin=wavs.min(), xmax=wavs.max(), lw=1.0, color='grey', zorder=-1)
+
+    ax_res.set_xticks(prism_wav_xticks())
     
     ##################################
     # --------- FORMATTING --------- #
     ##################################
     
-    ax.set_xlabel('$\lambda_{\\rm obs}{\\rm \\ [\mu m]}$')
+    # ax.set_xlabel('$\lambda_{\\rm obs}{\\rm \\ [\mu m]}$')
     ax.set_ylabel('${f_{\\lambda}}{\\rm\\ [erg\ s^{-1} cm^{-2} \AA^{-1}]}$')
     if not f_lam:
         ax.set_ylabel('${f_{\\nu}} {\\rm\\ [\\mu Jy]}$')
+
+    ax_res.set_xlabel('$\lambda_{\\rm obs}{\\rm \\ [\mu m]}$')
+    ax_res.set_ylabel('$\chi$')
 
     xmin_plot, xmax_plot = np.min(wavs), np.max(wavs)
     ymin_plot, ymax_plot = -0.1*np.max(spec_fluxes), 1.1*np.max(spec_fluxes)
@@ -354,14 +375,16 @@ def plot_fitted_spectrum(fit, fname_spec, z_spec, suffix, f_lam=False, show=Fals
     ax.set_xlim(xmin_plot, xmax_plot)
     ax.set_ylim(ymin_plot, ymax_plot)
 
-    ax.set_xticks(prism_wav_xticks())
+    ax_res.set_xlim(xmin_plot, xmax_plot)
+
+    ax_res.set_xticks(prism_wav_xticks())
     
     ax.legend(loc='upper left', framealpha=0.5)
 
     fname = fname_spec.split('.spec')[0]
     ax.set_title(fname+'          $z=$'+str(np.round(z_spec,4)), loc='right')
 
-    figure_timestamp(fig, x=0.97, y=0.04, fontsize=8)
+    figure_timestamp(fig, x=0.97, y=0.01, fontsize=8)
     
     plt.tight_layout()
     
@@ -741,12 +764,15 @@ def save_posterior_sample_dists(fit, fname_spec, suffix, save=False):
     [[timescales_names.append(f"t{timescales_i}{post_ext_j}") for post_ext_j in post_ext] for timescales_i in timescales]
     timescales_tab = Table(data=timescale_arr.flatten(), names=timescales_names)
 
-    # calculating and tabulating balmber and d4000 breaks
+    # calculating and tabulating balmer and d4000 breaks
     break_values = calc_BB_and_D4000(fname_spec, z_spec)
     break_tab = Table(data=np.array(break_values), names=["bb", "bb_err", "d4000", "d4000_err"])
 
+    # tabulating modelled line fluxes from BAGPIPES posterior
+    linefluxes_tab = tabulate_modelled_line_fluxes(fit)
+
     ### saving posterior to csv table ###
-    tab_stacked = hstack([phot_cols, post_tab, timescales_tab, break_tab])
+    tab_stacked = hstack([phot_cols, post_tab, timescales_tab, break_tab, linefluxes_tab])
 
     if not os.path.exists("./pipes/cats/" + fit.run):
         os.mkdir("./pipes/cats/" + fit.run)
@@ -1010,7 +1036,18 @@ def calc_BB_and_D4000(fname_spec, z_spec):
 # --------------------------------------------------------------
 # -------------------------------- TABULATE EMISSION LINE FLUXES
 # --------------------------------------------------------------
-def save_modelled_line_fluxes(fit, fname_spec, suffix, save=False):
+def tabulate_modelled_line_fluxes(fit):
+    """
+    Tabulates modelled line fluxes from BAGPIPES fit, returns table
+    
+    Parameters
+    ----------
+    fit : fit object from BAGPIPES (where fit = pipes.fit(galaxy, fit_instructions))
+
+    Returns
+    -------
+    linefluxes_tab : format=astropy Table
+    """
 
     line_fluxes = fit.posterior.model_galaxy.line_fluxes
     keys = line_fluxes.keys()
@@ -1018,12 +1055,12 @@ def save_modelled_line_fluxes(fit, fname_spec, suffix, save=False):
     line_flux_values = np.array(list(line_fluxes.values()))
     linefluxes_tab = Table(data=line_flux_values, names=keys_colnames, units=[u.erg/u.second/u.centimeter/u.centimeter] * len(keys_colnames))
 
-    specname_tab = Table(np.array([fname_spec]), names=["file_spec"])
+    # specname_tab = Table(np.array([fname_spec]), names=["file_spec"])
 
-    tab = hstack([specname_tab, linefluxes_tab])
+    # tab = hstack([specname_tab, linefluxes_tab])
     
-    fname = fname_spec.split('.spec')[0]
-    tabpath = "pipes/cats/" + fit.run + "/" + fname + '_' + suffix + '_postlinefluxes.csv'
-    tab.write(tabpath, format='csv', overwrite=True)
+    # fname = fname_spec.split('.spec')[0]
+    # tabpath = "pipes/cats/" + fit.run + "/" + fname + '_' + suffix + '_postlinefluxes.csv'
+    # tab.write(tabpath, format='csv', overwrite=True)
 
-    return None
+    return linefluxes_tab
