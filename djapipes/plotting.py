@@ -351,7 +351,7 @@ def plot_fitted_spectrum(fit, fname_spec, z_spec, suffix, f_lam=False, show=Fals
     ax_res = fig.add_axes((.1,.1,.85,.2))
 
     ax_res.plot(wavs, spec_residual,
-                zorder=-1, color='firebrick', alpha=0.7, lw=1.)
+                zorder=-1, color='k', alpha=0.5, lw=1.)
     
     ax_res.hlines(y=0, xmin=wavs.min(), xmax=wavs.max(), lw=1.0, color='grey', zorder=-1)
 
@@ -376,6 +376,7 @@ def plot_fitted_spectrum(fit, fname_spec, z_spec, suffix, f_lam=False, show=Fals
     ax.set_ylim(ymin_plot, ymax_plot)
 
     ax_res.set_xlim(xmin_plot, xmax_plot)
+    ax_res.set_ylim(-1.1*np.abs(spec_residual).max(), 1.1*np.abs(spec_residual).max())
 
     ax_res.set_xticks(prism_wav_xticks())
     
