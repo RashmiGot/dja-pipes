@@ -5,6 +5,8 @@ import numpy as np
 from astropy.io import fits
 from astropy.cosmology import Planck13 as cosmo
 
+import re
+
 import os
 import grizli.utils
 
@@ -36,9 +38,9 @@ def fitting_params(runid, z_spec, sfh="continuity", n_age_bins=10, scale_disp=1.
 
     
     ## ---------- ## delayed-tau sfh (parametric)
-    delayed = {}                         # Delayed Tau model t*e^-(t/tau)
-    delayed["age"] = (0.1, 9.)           # Time since SF began: Gyr
-    delayed["tau"] = (0.1, 9.)           # Timescale of decrease: Gyr
+    delayed = {}                         # delayed Tau model t*e^-(t/tau)
+    delayed["age"] = (0.1, 9.)           # time since SF began: Gyr
+    delayed["tau"] = (0.1, 9.)           # timescale of decrease: Gyr
     delayed["massformed"] = (6., 13.)
     delayed["metallicity"] = (0.2, 1.)   # in Zsun
 
@@ -78,12 +80,17 @@ def fitting_params(runid, z_spec, sfh="continuity", n_age_bins=10, scale_disp=1.
     for i in range(1, len(continuity["bin_edges"])-1):
         continuity["dsfr" + str(i)] = (-10., 10.)
         continuity["dsfr" + str(i) + "_prior"] = "student_t"
-        continuity["dsfr" + str(i) + "_prior_scale"] = 1.0  # Defaults to 0.3 as in Leja19, but can be set - 1 is bursty continuity prior from Tacchella+21
-        continuity["dsfr" + str(i) + "_prior_df"] = 2       # Defaults to this value as in Leja19, but can be set
-    continuity["age_min"] = 0
+        
+        # set width of Student's t-distribution
+        if sfh=="continuity":
+            continuity["dsfr" + str(i) + "_prior_scale"] = 0.3  # as in Leja+19 (smooth continuity prior)
+        elif sfh=="bursty_continuity":
+            continuity["dsfr" + str(i) + "_prior_scale"] = 1.0  # as in Tacchella+22 (bursty continuity prior)
+        
+        continuity["dsfr" + str(i) + "_prior_df"] = 2           # defaults to this value as in Leja+19
 
     # setting the preferred sfh
-    if sfh=="continuity":
+    if sfh=="continuity" or sfh=="bursty_continuity":
         fit_instructions["continuity"] = continuity
     elif sfh=="dblplaw":
         fit_instructions["dblplaw"] = dblplaw
@@ -92,15 +99,15 @@ def fitting_params(runid, z_spec, sfh="continuity", n_age_bins=10, scale_disp=1.
     
     ## ---------- ## nebular emisison, logU
     nebular = {}
-    nebular["logU"] = (-4., -1.)
+    nebular["logU"] = (-4., -1.0)
     nebular["logU_prior"] = "uniform"
     fit_instructions["nebular"] = nebular
     
     ## ---------- ## dust law
     dust = {}
     if dust_type=="calzetti":
-        dust["type"] = "Calzetti"            # Shape of the attenuation curve
-        dust["Av"] = (0., 6.)                # Vary Av between 0 and 4 magnitudes
+        dust["type"] = "Calzetti"            # shape of the attenuation curve
+        dust["Av"] = (0., 6.)                # vary Av between 0 and 6 mag
     elif dust_type=="CF00":
         dust["type"] = "CF00"
         dust["eta"] = 2.
@@ -111,23 +118,23 @@ def fitting_params(runid, z_spec, sfh="continuity", n_age_bins=10, scale_disp=1.
         dust["n_prior_sigma"] = 0.3
     elif dust_type=="salim":
         dust["type"] = "Salim"
-        dust["Av"] = (0., 6.)                # Vary Av magnitude
-        dust["delta"] = (-0.3, 0.3)          # Vary att. slope
-        dust["delta_prior"] = "Gaussian"     # prior on att. slope
-        dust["delta_prior_mu"] = 0           # avg. of prior on att. slope
-        dust["delta_prior_sigma"] = 0.1      # standard dev. of prior on att. slope
-        dust["B"] = (0., 3)                  # Vary 2175A bump strength
+        dust["Av"] = (0., 6.)                # vary Av mag
+        dust["delta"] = (-0.3, 0.3)          # vary att. curve slope
+        dust["delta_prior"] = "Gaussian"     # prior on att. curve slope
+        dust["delta_prior_mu"] = 0           # avg. of prior on att. curve slope
+        dust["delta_prior_sigma"] = 0.1      # standard dev. of prior on att. curve slope
+        dust["B"] = (0., 3)                  # vary 2175A bump strength
         dust["B_prior"] = "uniform"          # prior on 2175A bump strength
     elif dust_type=="kriek":
         dust["type"] = "Salim"               # Specify parameters within the "Salim" model to match Kriek & Conroy 2013
-        dust["Av"] = (0., 6.)                # Vary Av magnitude
-        dust["eta"] = 2.0#1.0/0.4 - 1        # Multiplicative factor on Av for stars in birth clouds
-        dust["delta"] = -0.2                 # Similar to Kriek & Conroy 2013
-        dust["B"] = 1                        # Similar to Kriek & Conroy 2013
+        dust["Av"] = (0., 6.)                # vary Av magnitude
+        dust["eta"] = 2.0#1.0/0.4 - 1        # multiplicative factor on Av for stars in birth clouds
+        dust["delta"] = -0.2                 # similar to Kriek & Conroy 2013
+        dust["B"] = 1                        # similar to Kriek & Conroy 2013
     fit_instructions["dust"] = dust
 
     ## ---------- ## max age of birth clouds: Gyr
-    fit_instructions["t_bc"] = 0.01
+    fit_instructions["t_bc"] = 0.01          # 10 Myr birth cloud age
     
     ## ---------- ## agn component
     agn = {}
@@ -206,14 +213,34 @@ def fitting_params(runid, z_spec, sfh="continuity", n_age_bins=10, scale_disp=1.
 
 def run_pipes_on_dja_spec(file_spec="rubies-egs61-v3_prism-clear_4233_42328.spec.fits",
                           valid_threshold=400,
+                          mask_lines=False, line_wavs=np.array([4970, 6562.81]), delta_lam=0,
                           sfh="continuity", n_age_bins=10, scale_disp=1.3, dust_type="kriek",
-                          use_msa_resamp=False, fit_agn=False, fit_dla=False, fit_mlpoly=False, make_plots=True, **kwargs):
+                          msa_line_components=None,
+                          use_msa_resamp=False, fit_agn=False, fit_dla=False, fit_mlpoly=False, make_plots=True, save_tabs=True,
+                          suffix=None,
+                          **kwargs):
     """
     Runs bagpipes on spectrum from DJA AWS database, saves posteriors as .h5 files and plots as .pdf files
     
     Parameters
     ----------
     file_spec : DJA spectrum name, format=str
+    valid_threshold : minimum number of valid datapoints to have in spectrum datafile
+    mask_lines : to mask lines or not, format=bool
+    line_wavs : rest-frame wavelengths of lines to mask in angstroms, format=numpy array
+    delta_lam : width of masking region in angstroms, format=float
+    sfh : name of star-formation history, format=string
+    n_age_bins : number of bins for SFH, only needed if sfh="continuity", format=int
+    scale_disp : 
+    dust_type :
+    msa_line_components : names of line components to add to bagpipes model when loglikelihood is calculated between model and data, format=list of strings
+    use_msa_resamp : 
+    fit_agn : 
+    fit_dla :
+    fit_mpoly :
+    make_plots : 
+    save_tabs :
+    suffix : 
 
     Returns
     -------
@@ -231,7 +258,8 @@ def run_pipes_on_dja_spec(file_spec="rubies-egs61-v3_prism-clear_4233_42328.spec
     ##################################
 
     # id and dja name of spectrum
-    runid = runName.split('_')[-1]
+    runid0 = runName.split('_')[-1]
+    runid = re.findall(r'\d+', runid0)[0]
 
     print(runid, runName)
     
@@ -257,15 +285,18 @@ def run_pipes_on_dja_spec(file_spec="rubies-egs61-v3_prism-clear_4233_42328.spec
     if not is_valid:
         print("Spectrum not valid")
         return None
+    
+    # spectroscopic redshift
+    z_spec = database.pull_zspec_from_db(fname_spec)
 
+    _ = fitting.mask_emission_lines(fname_spec, z_spec, mask_lines=mask_lines, line_wavs=line_wavs, delta_lam=delta_lam)
+
+    # photometry
     try:
         database.pull_phot_from_db(fname_spec, fname_phot, filePath)
     except IndexError:
         print("No photometry found")
         return None
-
-    # spectroscopic redshift
-    z_spec = database.pull_zspec_from_db(fname_spec)
 
     ##################################
     # -------- BAGPIPES RUN -------- #
@@ -284,9 +315,19 @@ def run_pipes_on_dja_spec(file_spec="rubies-egs61-v3_prism-clear_4233_42328.spec
     fit_instructions = fitting_params(runid, z_spec, sfh=sfh, n_age_bins=n_age_bins, scale_disp=scale_disp,
                                       dust_type=dust_type,
                                       use_msa_resamp=use_msa_resamp, fit_agn=fit_agn, fit_dla=fit_dla, fit_mlpoly=fit_mlpoly)
+    
+    # interpolated prism resolution curve 
+    R_curve_interp = np.interp(galaxy.spectrum[:, 0]/10000,
+                               fit_instructions["R_curve"][:,0]/10000,
+                               fit_instructions["R_curve"][:,1])
+    galaxy.R_curve_interp = R_curve_interp
+
+    # add msa line components to galaxy object
+    galaxy.msa_line_components = msa_line_components
 
     # check if posterior file exists
-    suffix = sfh + '_' + dust_type
+    if suffix is None:
+        suffix = sfh + '_' + dust_type
     
     full_posterior_file = f'pipes/posterior/{runName}/{runName}_{suffix}.h5'
     run_posterior_file = f'pipes/posterior/{runName}/{runid}.h5'
@@ -323,12 +364,13 @@ def run_pipes_on_dja_spec(file_spec="rubies-egs61-v3_prism-clear_4233_42328.spec
         _ = plotting.plot_calib(fit, fname_spec, z_spec=z_spec, suffix=suffix,
                                 save=True, plot_xlims=[plotlims_flam[0],plotlims_flam[1]])
 
+    if save_tabs:
         # # save posterior quantities to table
         _ = plotting.save_posterior_sample_dists(fit, fname_spec, suffix=suffix, save=True)
         # # save calib curve to table
         _ = plotting.save_calib(fit, fname_spec, suffix=suffix, save=True)
-        # # save modelled line fluxes to table
-        _ = plotting.save_modelled_line_fluxes(fit, fname_spec, suffix=suffix, save=True)
+        # # # save modelled line fluxes to table
+        # _ = plotting.save_modelled_line_fluxes(fit, fname_spec, suffix=suffix, save=True)
 
     # rename posterior
     os.rename(run_posterior_file, full_posterior_file)
