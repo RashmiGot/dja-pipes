@@ -270,7 +270,7 @@ def plot_fitted_spectrum(fit, fname_spec, z_spec, suffix, f_lam=False, show=Fals
     spec_fluxes_model_lo = post[:,0]
     spec_fluxes_model_hi = post[:,2]
 
-    spec_residual = (spec_fluxes_model - spec_fluxes) / spec_efluxes
+    spec_residual = (spec_fluxes - spec_fluxes_model) / spec_efluxes
 
     phot_flux_mask = fit.galaxy.photometry[:,2]<1e90
 
@@ -282,6 +282,8 @@ def plot_fitted_spectrum(fit, fname_spec, z_spec, suffix, f_lam=False, show=Fals
     phot_fluxes_model_lo = (phot_post[:,0])[phot_flux_mask]
     phot_fluxes_model_hi = (phot_post[:,2])[phot_flux_mask]
 
+    phot_residual = (phot_fluxes - phot_fluxes_model) / phot_efluxes
+
     if not f_lam:
         spec_fluxes = fitting.convert_cgs2mujy(spec_fluxes, wavs*10000)
         spec_efluxes = fitting.convert_cgs2mujy(spec_efluxes, wavs*10000)
@@ -290,7 +292,7 @@ def plot_fitted_spectrum(fit, fname_spec, z_spec, suffix, f_lam=False, show=Fals
         spec_fluxes_model_lo = fitting.convert_cgs2mujy(spec_fluxes_model_lo, wavs*10000)
         spec_fluxes_model_hi = fitting.convert_cgs2mujy(spec_fluxes_model_hi, wavs*10000)
 
-        spec_residual = (spec_fluxes_model - spec_fluxes) / spec_efluxes
+        spec_residual = (spec_fluxes - spec_fluxes_model) / spec_efluxes
 
         phot_fluxes = fitting.convert_cgs2mujy(phot_fluxes, phot_wavs*10000)
         phot_efluxes = fitting.convert_cgs2mujy(phot_efluxes, phot_wavs*10000)
@@ -298,6 +300,8 @@ def plot_fitted_spectrum(fit, fname_spec, z_spec, suffix, f_lam=False, show=Fals
         phot_fluxes_model = fitting.convert_cgs2mujy(phot_fluxes_model, phot_wavs*10000)
         phot_fluxes_model_lo = fitting.convert_cgs2mujy(phot_fluxes_model_lo, phot_wavs*10000)
         phot_fluxes_model_hi = fitting.convert_cgs2mujy(phot_fluxes_model_hi, phot_wavs*10000)
+
+        phot_residual = (phot_fluxes - phot_fluxes_model) / phot_efluxes
     
     # plotting spectrum
     fig = plt.figure(1, figsize=(10,5.0))
@@ -351,7 +355,11 @@ def plot_fitted_spectrum(fit, fname_spec, z_spec, suffix, f_lam=False, show=Fals
     ax_res = fig.add_axes((.1,.1,.85,.2))
 
     ax_res.plot(wavs, spec_residual,
-                zorder=-1, color='k', alpha=0.5, lw=1.)
+                zorder=-1, color='slategrey', alpha=0.7, lw=1.)
+    
+    ax_res.errorbar(phot_wavs, phot_residual,
+                    fmt='o', ms=8, color='gainsboro', markeredgecolor='k', ecolor='grey', elinewidth=0.5, markeredgewidth=1.,
+                    zorder=1, alpha=1.)
     
     ax_res.hlines(y=0, xmin=wavs.min(), xmax=wavs.max(), lw=1.0, color='grey', zorder=-1)
 
