@@ -352,9 +352,9 @@ def run_pipes_on_dja_spec(file_spec="rubies-egs61-v3_prism-clear_4233_42328.spec
         _, plotlims_fnu = plotting.plot_fitted_spectrum(fit, fname_spec, z_spec=z_spec, suffix=suffix,
                                                         f_lam=False, save=True, return_plotlims=True)
         # # plot data
-        _ = plotting.plot_spec_phot_data(fname_spec, fname_phot, z_spec=z_spec, suffix=suffix,
+        _ = plotting.plot_spec_phot_data(runid, fname_spec, fname_phot, z_spec=z_spec, suffix=suffix,
                                         f_lam=True, show=False, save=True, run=runName, plotlims=plotlims_flam)
-        _ = plotting.plot_spec_phot_data(fname_spec, fname_phot, z_spec=z_spec, suffix=suffix,
+        _ = plotting.plot_spec_phot_data(runid, fname_spec, fname_phot, z_spec=z_spec, suffix=suffix,
                                         f_lam=False, show=False, save=True, run=runName, plotlims=plotlims_fnu)
         # # plot star-formation history
         _ = plotting.plot_fitted_sfh(fit, fname_spec, z_spec=z_spec, suffix=suffix, save=True)

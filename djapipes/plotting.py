@@ -74,7 +74,7 @@ def prism_wav_xticks(xmin=1, xmax=5, dx=0.5):
 # --------------------------------------------------------------
 # ---------------------- PLOT SPECTROSCOPIC AND PHOTOMETRIC DATA
 # --------------------------------------------------------------
-def plot_spec_phot_data(fname_spec, fname_phot, z_spec, suffix, f_lam=False, show=False, save=False, run='.', plotlims=None):
+def plot_spec_phot_data(runid, fname_spec, fname_phot, z_spec, suffix, f_lam=False, show=False, save=False, run='.', plotlims=None):
     """
     Plots spectrum and photometry of given source
     
@@ -102,22 +102,7 @@ def plot_spec_phot_data(fname_spec, fname_phot, z_spec, suffix, f_lam=False, sho
     # photometry
     phot_tab = Table.read(f'files/{fname_phot}', format='ascii.commented_header')
     
-
-    # jwst filter list
-    # filt_list = np.loadtxt("../filters/filt_list.txt", dtype="str")
-    #
-    # # extract fluxes from cat
-    # flux_colNames = [filt_list_i.split('/')[-1].split('.')[0]+'_tot_1' for filt_list_i in filt_list]
-    # eflux_colNames = [filt_list_i.split('/')[-1].split('.')[0]+'_etot_1' for filt_list_i in filt_list]
-    #
-    # # zeropoints table
-    # zpoints = Table.read('zeropoints.csv', format='csv')
-
-    filt_list = djautils.read_filter_list("filt_list.txt")
-
-    # extract fluxes from cat (muJy); '{filter}_tot_1'==0.5'' aperture
-    # flux_colNames = [filt_list_i.split('/')[-1].split('.')[0]+'_tot_1' for filt_list_i in filt_list]
-    # eflux_colNames = [filt_list_i.split('/')[-1].split('.')[0]+'_etot_1' for filt_list_i in filt_list]
+    filt_list = fitting.updated_filt_list(runid) # list of filters
 
     flux_colNames = [
         os.path.basename(filt_list_i).split('.')[0]+'_tot_1'
@@ -395,7 +380,7 @@ def plot_fitted_spectrum(fit, fname_spec, z_spec, suffix, f_lam=False, show=Fals
 
     figure_timestamp(fig, x=0.97, y=0.01, fontsize=8)
     
-    plt.tight_layout()
+    # plt.tight_layout()
     
     if save:
         str_ext = '_flam'
