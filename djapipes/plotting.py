@@ -362,8 +362,6 @@ def plot_fitted_spectrum(fit, fname_spec, z_spec, suffix, f_lam=False, show=Fals
                     zorder=1, alpha=1.)
     
     ax_res.hlines(y=0, xmin=wavs.min(), xmax=wavs.max(), lw=1.0, color='grey', zorder=-1)
-
-    ax_res.set_xticks(prism_wav_xticks())
     
     ##################################
     # --------- FORMATTING --------- #
@@ -382,6 +380,8 @@ def plot_fitted_spectrum(fit, fname_spec, z_spec, suffix, f_lam=False, show=Fals
 
     ax.set_xlim(xmin_plot, xmax_plot)
     ax.set_ylim(ymin_plot, ymax_plot)
+
+    ax.set_xticks([])
 
     ax_res.set_xlim(xmin_plot, xmax_plot)
     ax_res.set_ylim(-1.1*np.abs(spec_residual).max(), 1.1*np.abs(spec_residual).max())
