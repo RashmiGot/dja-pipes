@@ -35,7 +35,6 @@ matplotlib.rcParams['font.family'] = 'STIXGeneral'
 # --------------------------------------------------------------
 # ------------------------- EFFECTIVE WAVELENGTH OF PHOT FILTERS
 # --------------------------------------------------------------
-
 def calc_eff_wavs(filt_list):
     """
     Calculates effective wavelengths of photometric filters
@@ -67,8 +66,35 @@ def calc_eff_wavs(filt_list):
     return eff_wavs
 
 
-def prism_wav_xticks(xmin=1, xmax=5, dx=0.5):
+
+# --------------------------------------------------------------
+# ----------------------------------- DEFINING X-TICKS FOR PRISM
+# --------------------------------------------------------------
+def prism_wav_xticks(xmin=0.5, xmax=5.5, dx=0.5):
     return np.arange(xmin,xmax+dx,dx)
+
+
+# --------------------------------------------------------------
+# ---------------------------- CONVERTING WAVELENGTHS TO INDECES
+# --------------------------------------------------------------
+def wav_to_idx(wavs_to_conv, wavs):
+    """
+    Maps wavelengths to index values
+    
+    Parameters
+    ----------
+    wavs_to_conv : Wavelengths for which to get index values; format=numpy array
+    wavs : Wavelengths of spectrum; format=numpy array
+
+    Returns
+    -------
+    idx : Index values of wavs_to_conv argument
+    """
+
+    idx_wavs = np.arange(len(wavs))
+    idx = np.interp(wavs_to_conv, wavs, idx_wavs)
+
+    return(idx)
 
 
 # --------------------------------------------------------------
@@ -215,7 +241,7 @@ def plot_spec_phot_data(runid, fname_spec, fname_phot, z_spec, suffix, f_lam=Fal
 # --------------------------------------------------------------
 # ----------------------------------- PLOT FITTED SPECTRAL MODEL
 # --------------------------------------------------------------
-def plot_fitted_spectrum(fit, fname_spec, z_spec, suffix, f_lam=False, show=False, save=False, return_plotlims=False):
+def plot_fitted_spectrum(fit, fname_spec, z_spec, suffix, f_lam=False, show=False, save=False, return_plotlims=False, ymax=None):
     """
     Plots fitted BAGPIPES spectral model, observed spectrum and observed photometry of given source
     
@@ -251,9 +277,23 @@ def plot_fitted_spectrum(fit, fname_spec, z_spec, suffix, f_lam=False, show=Fals
     spec_fluxes = fit.galaxy.spectrum[:,1]*calib_50
     spec_efluxes = fit.galaxy.spectrum[:,2]*calib_50
 
-    spec_fluxes_model = post[:,1]
-    spec_fluxes_model_lo = post[:,0]
-    spec_fluxes_model_hi = post[:,2]
+    if fit.galaxy.msa_line_components is not None:
+        msa_lsqfit_fluxes = np.percentile(fit.galaxy.msa_model, 50, axis=0).T
+
+    spec_fluxes_model_no_msalsq = post[:,1]
+    spec_fluxes_model_no_msalsq_lo = post[:,0]
+    spec_fluxes_model_no_msalsq_hi = post[:,2]
+
+    spec_residual_no_msalsq = (spec_fluxes - spec_fluxes_model_no_msalsq) / spec_efluxes
+
+    if fit.galaxy.msa_line_components is not None:
+        spec_fluxes_model = post[:,1] + msa_lsqfit_fluxes*calib_50
+        spec_fluxes_model_lo = post[:,0] + msa_lsqfit_fluxes*calib_50
+        spec_fluxes_model_hi = post[:,2] + msa_lsqfit_fluxes*calib_50
+    else:
+        spec_fluxes_model = post[:,1]
+        spec_fluxes_model_lo = post[:,0]
+        spec_fluxes_model_hi = post[:,2]
 
     spec_residual = (spec_fluxes - spec_fluxes_model) / spec_efluxes
 
@@ -272,6 +312,12 @@ def plot_fitted_spectrum(fit, fname_spec, z_spec, suffix, f_lam=False, show=Fals
     if not f_lam:
         spec_fluxes = fitting.convert_cgs2mujy(spec_fluxes, wavs*10000)
         spec_efluxes = fitting.convert_cgs2mujy(spec_efluxes, wavs*10000)
+
+        spec_fluxes_model_no_msalsq = fitting.convert_cgs2mujy(spec_fluxes_model_no_msalsq, wavs*10000)
+        spec_fluxes_model_no_msalsq_lo = fitting.convert_cgs2mujy(spec_fluxes_model_no_msalsq_lo, wavs*10000)
+        spec_fluxes_model_no_msalsq_hi = fitting.convert_cgs2mujy(spec_fluxes_model_no_msalsq_hi, wavs*10000)
+
+        spec_residual_no_msalsq = (spec_fluxes - spec_fluxes_model_no_msalsq) / spec_efluxes
 
         spec_fluxes_model = fitting.convert_cgs2mujy(spec_fluxes_model, wavs*10000)
         spec_fluxes_model_lo = fitting.convert_cgs2mujy(spec_fluxes_model_lo, wavs*10000)
@@ -292,38 +338,62 @@ def plot_fitted_spectrum(fit, fname_spec, z_spec, suffix, f_lam=False, show=Fals
     fig = plt.figure(1, figsize=(10,5.0))
     ax = fig.add_axes((.1,.3,.85,.6))
 
-    ax.hlines(y=0, xmin=wavs.min(), xmax=wavs.max(), lw=1.0, color='gainsboro', zorder=-1)
+    # from https://github.com/gbrammer/msaexp/blob/main/msaexp/utils.py#L1846
+    ymax_percentile = 90
+    ymax_scale = 1.5
+    ymax_sigma_scale = 7
+    if ymax is None:
+        _msk = (spec_efluxes > 0) & np.isfinite(spec_efluxes) & np.isfinite(spec_efluxes)
+        if _msk.sum() == 0:
+            ymax = 1.0
+        else:
+            ymax = np.nanpercentile(spec_fluxes[_msk], ymax_percentile) * ymax_scale
+            ymax = np.maximum(ymax, ymax_sigma_scale * np.nanmedian(spec_efluxes[_msk]))
+    # ymax*=np.nanmax(calib_50)
+
+    # x ticks 
+    xpos = wav_to_idx(wavs_to_conv=wavs, wavs=wavs)
+    phot_xpos = wav_to_idx(wavs_to_conv=phot_wavs, wavs=wavs)
+
+    ax.hlines(y=0, xmin=xpos.min(), xmax=xpos.max(), lw=1.0, color='gainsboro', zorder=-1)
     
     ##################################
     # ------------ DATA ------------ #
     ##################################
     
     # ---------- SPECTRUM ---------- #
-    ax.plot(wavs, spec_fluxes,
-            zorder=-1, color='slategrey', alpha=0.7, lw=1, label='Spectrum (scaled)')
-    ax.fill_between(wavs,
+    ax.step(xpos, spec_fluxes,
+            zorder=-1, color='slategrey', alpha=0.7, lw=1, label='Spectrum (scaled)', where="mid")
+    ax.fill_between(xpos,
                     spec_fluxes-spec_efluxes,
                     spec_fluxes+spec_efluxes,
-                    zorder=-1, color='slategrey', alpha=0.1)
+                    zorder=-1, color='slategrey', alpha=0.1, step="mid")
     
     # ---------- PHOTOMETRY ---------- #
-    ax.errorbar(phot_wavs, phot_fluxes, yerr=phot_efluxes,
+    ax.errorbar(phot_xpos, phot_fluxes, yerr=phot_efluxes,
                 fmt='o', ms=8, color='gainsboro', markeredgecolor='k', ecolor='grey', elinewidth=0.5, markeredgewidth=1.,
                 zorder=1, alpha=1., label='Photometry')
     
     ##################################
     # -------- FITTED MODEL -------- #
     ##################################
+
+    # ------- PIPES SPECTRUM ------- #
+    ax.step(xpos, spec_fluxes_model_no_msalsq,
+            zorder=-1, color='steelblue', alpha=0.7, lw=1.5, where="mid")
+    ax.fill_between(xpos,
+                    spec_fluxes_model_no_msalsq_lo, spec_fluxes_model_no_msalsq_hi,
+                    zorder=-1, color='steelblue', alpha=0.1, step="mid")
     
     # ---------- SPECTRUM ---------- #
-    ax.plot(wavs, spec_fluxes_model,
-            zorder=-1, color='firebrick', alpha=0.7, lw=1.5, label='Model spectrum')
-    ax.fill_between(wavs,
+    ax.step(xpos, spec_fluxes_model,
+            zorder=-1, color='firebrick', alpha=0.7, lw=1.5, label='Model spectrum', where="mid")
+    ax.fill_between(xpos,
                     spec_fluxes_model_lo, spec_fluxes_model_hi,
-                    zorder=-1, color='firebrick', alpha=0.1)
+                    zorder=-1, color='firebrick', alpha=0.1, step="mid")
     
     # ---------- PHOTOMETRY ---------- #
-    ax.errorbar(phot_wavs, phot_fluxes_model, yerr=[phot_fluxes_model-phot_fluxes_model_lo, phot_fluxes_model_hi-phot_fluxes_model],
+    ax.errorbar(phot_xpos, phot_fluxes_model, yerr=[phot_fluxes_model-phot_fluxes_model_lo, phot_fluxes_model_hi-phot_fluxes_model],
                 fmt='o', ms=7, color='firebrick', markeredgecolor='k', ecolor='grey', elinewidth=0.5, markeredgewidth=.5,
                 zorder=1, alpha=0.7, label='Model photometry')
 
@@ -331,7 +401,7 @@ def plot_fitted_spectrum(fit, fname_spec, z_spec, suffix, f_lam=False, show=Fals
     # ------- EMISSION LINES ------- #
     ##################################
 
-    add_lines_msa(z_spec=z_spec)
+    add_lines_msa(z_spec=z_spec, wavs_for_scaling=wavs)
 
     ##################################
     # --------- RESIDUALS ---------- #
@@ -339,14 +409,17 @@ def plot_fitted_spectrum(fit, fname_spec, z_spec, suffix, f_lam=False, show=Fals
 
     ax_res = fig.add_axes((.1,.1,.85,.2))
 
-    ax_res.plot(wavs, spec_residual,
-                zorder=-1, color='slategrey', alpha=0.7, lw=1.)
+    ax_res.step(xpos, spec_residual_no_msalsq,
+                zorder=-1, color='steelblue', alpha=0.5, lw=1., where="mid")
+
+    ax_res.step(xpos, spec_residual,
+                zorder=-1, color='slategrey', alpha=0.7, lw=1., where="mid")
     
-    ax_res.errorbar(phot_wavs, phot_residual,
+    ax_res.errorbar(phot_xpos, phot_residual,
                     fmt='o', ms=8, color='gainsboro', markeredgecolor='k', ecolor='grey', elinewidth=0.5, markeredgewidth=1.,
                     zorder=1, alpha=1.)
     
-    ax_res.hlines(y=0, xmin=wavs.min(), xmax=wavs.max(), lw=1.0, color='grey', zorder=-1)
+    ax_res.hlines(y=0, xmin=xpos.min(), xmax=xpos.max(), lw=1.0, color='grey', zorder=-1)
     
     ##################################
     # --------- FORMATTING --------- #
@@ -360,25 +433,41 @@ def plot_fitted_spectrum(fit, fname_spec, z_spec, suffix, f_lam=False, show=Fals
     ax_res.set_xlabel('$\lambda_{\\rm obs}{\\rm \\ [\mu m]}$')
     ax_res.set_ylabel('$\chi$')
 
-    xmin_plot, xmax_plot = np.min(wavs), np.max(wavs)
+    xmin_plot, xmax_plot = np.min(xpos), np.max(xpos)
     ymin_plot, ymax_plot = -0.1*np.max(spec_fluxes), 1.1*np.max(spec_fluxes)
 
     ax.set_xlim(xmin_plot, xmax_plot)
-    ax.set_ylim(ymin_plot, ymax_plot)
+    ax.set_ylim(-0.1*ymax, ymax)
 
     ax.set_xticks([])
 
     ax_res.set_xlim(xmin_plot, xmax_plot)
-    ax_res.set_ylim(-1.1*np.abs(spec_residual).max(), 1.1*np.abs(spec_residual).max())
+    if np.abs(spec_residual).max()<=10:
+        ax_res_ylim = np.abs(spec_residual).max()
+    else:
+        ax_res_ylim = 10
+    ax_res.set_ylim(-1.1*ax_res_ylim, 1.1*ax_res_ylim)
 
-    ax_res.set_xticks(prism_wav_xticks())
+    xtmin = wav_to_idx(wavs_to_conv=prism_wav_xticks(xmin=0.5, xmax=5.5, dx=0.1), wavs=wavs)
+    xtmaj = wav_to_idx(wavs_to_conv=prism_wav_xticks(), wavs=wavs)
+    
+    ax.set_xticks(xtmin, minor=True)
+    ax.set_xticks(xtmaj, minor=False)
+    ax.set_xticklabels([])
+
+    ax_res.set_xticks(xtmin, minor=True)
+    ax_res.set_xticks(xtmaj, minor=False)
+    ax_res.set_xticklabels(prism_wav_xticks())
+
+    ax.grid(lw=0.5, ls="dotted", color="grey")
+    ax_res.grid(lw=0.5, ls="dotted", color="grey")
     
     ax.legend(loc='upper left', framealpha=0.5)
 
     fname = fname_spec.split('.spec')[0]
     ax.set_title(fname+'          $z=$'+str(np.round(z_spec,4)), loc='right')
 
-    figure_timestamp(fig, x=0.97, y=0.01, fontsize=8)
+    figure_timestamp(fig, x=0.95, y=0.002, fontsize=8)
     
     # plt.tight_layout()
     
@@ -820,13 +909,14 @@ def save_calib(fit, fname_spec, suffix, save=False):
 # --------------------------------------------------------------
 # ----------------------------------- EMISSION LINES FROM MSAEXP
 # --------------------------------------------------------------
-def add_lines_msa(z_spec):
+def add_lines_msa(z_spec, wavs_for_scaling=None):
     """
     Plots emission lines in colours consistent with msaexp plotting format
     
     Parameters
     ----------
     z_spec : spectroscopic redshift, format=float
+    wavs_for_scaling : spectrum wavelengths
 
     Returns
     -------
@@ -871,8 +961,12 @@ def add_lines_msa(z_spec):
                 cc["orange"],
             ],
         ):
-            wz = w * (1 + z_spec) / 1.0e4
-            dw = 0.02
+            if wavs_for_scaling is None:
+                wz = w * (1 + z_spec) / 1.0e4
+                dw = 0.02
+            elif wavs_for_scaling is not None:
+                wz = wav_to_idx(wavs_to_conv=w * (1 + z_spec) / 1.0e4, wavs=wavs_for_scaling)
+                dw = 2
 
             plt.fill_between(
                 [wz - dw, wz + dw],
@@ -1048,13 +1142,5 @@ def tabulate_modelled_line_fluxes(fit):
     keys_colnames = [re.sub('\s+', '_', keys_i) for keys_i in list(keys)]
     line_flux_values = np.array(list(line_fluxes.values()))
     linefluxes_tab = Table(data=line_flux_values, names=keys_colnames, units=[u.erg/u.second/u.centimeter/u.centimeter] * len(keys_colnames))
-
-    # specname_tab = Table(np.array([fname_spec]), names=["file_spec"])
-
-    # tab = hstack([specname_tab, linefluxes_tab])
-    
-    # fname = fname_spec.split('.spec')[0]
-    # tabpath = "pipes/cats/" + fit.run + "/" + fname + '_' + suffix + '_postlinefluxes.csv'
-    # tab.write(tabpath, format='csv', overwrite=True)
 
     return linefluxes_tab

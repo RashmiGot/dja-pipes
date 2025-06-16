@@ -216,6 +216,7 @@ def run_pipes_on_dja_spec(file_spec="rubies-egs61-v3_prism-clear_4233_42328.spec
                           mask_lines=False, line_wavs=np.array([4970, 6562.81]), delta_lam=0,
                           sfh="continuity", n_age_bins=10, scale_disp=1.3, dust_type="kriek",
                           msa_line_components=None,
+                          extended_prism_wavs=False,
                           use_msa_resamp=False, fit_agn=False, fit_dla=False, fit_mlpoly=False, make_plots=True, save_tabs=True,
                           suffix=None,
                           **kwargs):
@@ -231,20 +232,21 @@ def run_pipes_on_dja_spec(file_spec="rubies-egs61-v3_prism-clear_4233_42328.spec
     delta_lam : width of masking region in angstroms, format=float
     sfh : name of star-formation history, format=string
     n_age_bins : number of bins for SFH, only needed if sfh="continuity", format=int
-    scale_disp : 
-    dust_type :
+    scale_disp : multiplicative factor on LSF, format=float
+    dust_type : specifies dust law; can be 'calzetti', 'CF00', 'salim', 'kriek', format=str
     msa_line_components : names of line components to add to bagpipes model when loglikelihood is calculated between model and data, format=list of strings
-    use_msa_resamp : 
-    fit_agn : 
-    fit_dla :
-    fit_mpoly :
-    make_plots : 
-    save_tabs :
-    suffix : 
+    extended_prism_wavs : extend PRISM wavelengths for match DJA v4, format=bool
+    use_msa_resamp : use resampling function from msaexp, format=bool
+    fit_agn : add AGN prior in bagpipes, format=bool
+    fit_dla : add DLA prior in bagpipes, format=bool
+    fit_mpoly : add mploy prior in bagpipes for polynomial scaling, format=bool
+    make_plots : save plots, format=bool
+    save_tabs : save bagpipes outputs to tables, format=bool
+    suffix : add suffix to file names of saved outputs, format=str
 
     Returns
     -------
-    None
+    fit : bagpipes fit object
     """
 
     # name of bagpipes run
@@ -324,11 +326,21 @@ def run_pipes_on_dja_spec(file_spec="rubies-egs61-v3_prism-clear_4233_42328.spec
 
     # add msa line components to galaxy object
     galaxy.msa_line_components = msa_line_components
+    galaxy.msa_model = []
 
-    # check if posterior file exists
+    # add component to store least-squares coeffs. from msaexp fit
+    galaxy.lsq_coeffs = []
+
+    # specify whether or not to use extended wavelength range
+    galaxy.extended_prism_wavs = extended_prism_wavs
+
+    # suffix to add to saved file names
     if suffix is None:
         suffix = sfh + '_' + dust_type
+    if suffix is not None:
+        suffix = sfh + '_' + dust_type + '_' + suffix
     
+    # check if posterior file exists
     full_posterior_file = f'pipes/posterior/{runName}/{runName}_{suffix}.h5'
     run_posterior_file = f'pipes/posterior/{runName}/{runid}.h5'
     
@@ -369,8 +381,6 @@ def run_pipes_on_dja_spec(file_spec="rubies-egs61-v3_prism-clear_4233_42328.spec
         _ = plotting.save_posterior_sample_dists(fit, fname_spec, suffix=suffix, save=True)
         # # save calib curve to table
         _ = plotting.save_calib(fit, fname_spec, suffix=suffix, save=True)
-        # # # save modelled line fluxes to table
-        # _ = plotting.save_modelled_line_fluxes(fit, fname_spec, suffix=suffix, save=True)
 
     # rename posterior
     os.rename(run_posterior_file, full_posterior_file)
