@@ -452,7 +452,8 @@ def load_spec(ID):
     wav_min, wav_max = Table.read(filt_list[0], format="ascii")[0][0], Table.read(filt_list[-1], format="ascii")[-1][0]
 
     # spec_wavs_mask = (spec_wavs>7836) & (spec_wavs<50994) # wavs within photometric filter limits
-    spec_wavs_mask = (spec_wavs>wav_min) & (spec_wavs<wav_max)
+    # spec_wavs_mask = (spec_wavs>wav_min) & (spec_wavs<wav_max)
+    spec_wavs_mask = (spec_wavs>(spec_wavs.min()+100)) & (spec_wavs<(spec_wavs.max()-100))
 
     flux_muJy = np.array(spec_tab['flux'])
     fluxerr_muJy = np.array(spec_tab['err'])
