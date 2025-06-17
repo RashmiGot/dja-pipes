@@ -21,7 +21,8 @@ if not os.path.exists("./files"):
 
 # defines bagpipes fit_instructions dictionary 
 def fitting_params(runid, z_spec, sfh="continuity", n_age_bins=10, scale_disp=1.3, dust_type="kriek", 
-                   use_msa_resamp=False, fit_agn=False, fit_dla=False, fit_mlpoly=False):
+                   use_msa_resamp=False, fit_agn=False, fit_dla=False, fit_mlpoly=False,
+                   spec_only=False):
 
     fit_instructions = {}
     
@@ -172,34 +173,35 @@ def fitting_params(runid, z_spec, sfh="continuity", n_age_bins=10, scale_disp=1.
     if fit_dla:
         fit_instructions["dla"] = dla
 
-    ## ---------- ## calibration curve (2nd order polynomial)
-    cfit, cfit_err, _ = fitting.guess_calib(runid, z=z_spec) # guessing initial calibration coefficients
+    if not spec_only:
+        ## ---------- ## calibration curve (2nd order polynomial)
+        cfit, cfit_err, _ = fitting.guess_calib(runid, z=z_spec) # guessing initial calibration coefficients
 
-    calib = {}
-    calib["type"] = "polynomial_bayesian"
+        calib = {}
+        calib["type"] = "polynomial_bayesian"
+        
+        calib["0"] = (cfit[0]-5.*cfit_err[0], cfit[0]+5.*cfit_err[0])
+        calib["0_prior"] = "Gaussian"
+        calib["0_prior_mu"] = cfit[0]
+        calib["0_prior_sigma"] = cfit_err[0]
+        
+        calib["1"] = (cfit[1]-5.*cfit_err[1], cfit[1]+5.*cfit_err[1])
+        calib["1_prior"] = "Gaussian"
+        calib["1_prior_mu"] = cfit[1]
+        calib["1_prior_sigma"] = cfit_err[1]
+        
+        calib["2"] = (cfit[2]-5.*cfit_err[2], cfit[2]+5.*cfit_err[2])
+        calib["2_prior"] = "Gaussian"
+        calib["2_prior_mu"] = cfit[2]
+        calib["2_prior_sigma"] = cfit_err[2]
+        fit_instructions["calib"] = calib
     
-    calib["0"] = (cfit[0]-5.*cfit_err[0], cfit[0]+5.*cfit_err[0])
-    calib["0_prior"] = "Gaussian"
-    calib["0_prior_mu"] = cfit[0]
-    calib["0_prior_sigma"] = cfit_err[0]
-    
-    calib["1"] = (cfit[1]-5.*cfit_err[1], cfit[1]+5.*cfit_err[1])
-    calib["1_prior"] = "Gaussian"
-    calib["1_prior_mu"] = cfit[1]
-    calib["1_prior_sigma"] = cfit_err[1]
-    
-    calib["2"] = (cfit[2]-5.*cfit_err[2], cfit[2]+5.*cfit_err[2])
-    calib["2_prior"] = "Gaussian"
-    calib["2_prior_mu"] = cfit[2]
-    calib["2_prior_sigma"] = cfit_err[2]
-    fit_instructions["calib"] = calib
-    
-    # ## ---------- ##
-    if fit_mlpoly:
-        mlpoly = {}
-        mlpoly["type"] = "polynomial_max_like"
-        mlpoly["order"] = 4
-        fit_instructions["calib"] = mlpoly
+        ## ---------- ##
+        if fit_mlpoly:
+            mlpoly = {}
+            mlpoly["type"] = "polynomial_max_like"
+            mlpoly["order"] = 4
+            fit_instructions["calib"] = mlpoly
 
     ## ---------- ## white noise scaling
     noise = {}
@@ -213,6 +215,7 @@ def fitting_params(runid, z_spec, sfh="continuity", n_age_bins=10, scale_disp=1.
 
 def run_pipes_on_dja_spec(file_spec="rubies-egs61-v3_prism-clear_4233_42328.spec.fits",
                           valid_threshold=400,
+                          spec_only=False,
                           mask_lines=False, line_wavs=np.array([4970, 6562.81]), delta_lam=0,
                           sfh="continuity", n_age_bins=10, scale_disp=1.3, dust_type="kriek",
                           msa_line_components=None,
@@ -227,6 +230,7 @@ def run_pipes_on_dja_spec(file_spec="rubies-egs61-v3_prism-clear_4233_42328.spec
     ----------
     file_spec : DJA spectrum name, format=str
     valid_threshold : minimum number of valid datapoints to have in spectrum datafile
+    spec_only : fit spectrum only (ignore photometry), format=bool
     mask_lines : to mask lines or not, format=bool
     line_wavs : rest-frame wavelengths of lines to mask in angstroms, format=numpy array
     delta_lam : width of masking region in angstroms, format=float
@@ -294,29 +298,40 @@ def run_pipes_on_dja_spec(file_spec="rubies-egs61-v3_prism-clear_4233_42328.spec
     _ = fitting.mask_emission_lines(fname_spec, z_spec, mask_lines=mask_lines, line_wavs=line_wavs, delta_lam=delta_lam)
 
     # photometry
-    try:
-        database.pull_phot_from_db(fname_spec, fname_phot, filePath)
-    except IndexError:
-        print("No photometry found")
-        return None
+    if not spec_only:
+        try:
+            database.pull_phot_from_db(fname_spec, fname_phot, filePath)
+        except IndexError:
+            print("No photometry found")
+            return None
 
     ##################################
     # -------- BAGPIPES RUN -------- #
     ##################################
 
-    # jwst filter list
-    filt_list = fitting.updated_filt_list(runid)
+    if spec_only:
+        filt_list = None
 
-    # making galaxy object
-    galaxy = pipes.galaxy(runid, fitting.load_both, filt_list=filt_list,
-                        spec_units='ergscma',
-                        phot_units='ergscma',
-                        out_units="ergscma")
+        galaxy = pipes.galaxy(runid, fitting.load_spec, filt_list=filt_list,
+                              spectrum_exists=True,
+                              photometry_exists=False,
+                              spec_units='ergscma',
+                              out_units='ergscma')
+    elif not spec_only:
+        # jwst filter list
+        filt_list = fitting.updated_filt_list(runid)
+
+        # making galaxy object
+        galaxy = pipes.galaxy(runid, fitting.load_both, filt_list=filt_list,
+                              spec_units='ergscma',
+                              phot_units='ergscma',
+                              out_units='ergscma')
 
     # generating fit instructions
     fit_instructions = fitting_params(runid, z_spec, sfh=sfh, n_age_bins=n_age_bins, scale_disp=scale_disp,
                                       dust_type=dust_type,
-                                      use_msa_resamp=use_msa_resamp, fit_agn=fit_agn, fit_dla=fit_dla, fit_mlpoly=fit_mlpoly)
+                                      use_msa_resamp=use_msa_resamp, fit_agn=fit_agn, fit_dla=fit_dla, fit_mlpoly=fit_mlpoly,
+                                      spec_only=spec_only)
     
     # interpolated prism resolution curve 
     R_curve_interp = np.interp(galaxy.spectrum[:, 0]/10000,
@@ -360,27 +375,30 @@ def run_pipes_on_dja_spec(file_spec="rubies-egs61-v3_prism-clear_4233_42328.spec
     if make_plots:
         # plot fitted model
         _, plotlims_flam = plotting.plot_fitted_spectrum(fit, fname_spec, z_spec=z_spec, suffix=suffix,
-                                                        f_lam=True, save=True, return_plotlims=True)
+                                                        spec_only=spec_only, f_lam=True, save=True, return_plotlims=True)
         _, plotlims_fnu = plotting.plot_fitted_spectrum(fit, fname_spec, z_spec=z_spec, suffix=suffix,
-                                                        f_lam=False, save=True, return_plotlims=True)
-        # # plot data
+                                                        spec_only=spec_only, f_lam=False, save=True, return_plotlims=True)
+        # plot data
         _ = plotting.plot_spec_phot_data(runid, fname_spec, fname_phot, z_spec=z_spec, suffix=suffix,
-                                        f_lam=True, show=False, save=True, run=runName, plotlims=plotlims_flam)
+                                        spec_only=spec_only, f_lam=True, show=False, save=True, run=runName, plotlims=plotlims_flam)
         _ = plotting.plot_spec_phot_data(runid, fname_spec, fname_phot, z_spec=z_spec, suffix=suffix,
-                                        f_lam=False, show=False, save=True, run=runName, plotlims=plotlims_fnu)
-        # # plot star-formation history
+                                        spec_only=spec_only, f_lam=False, show=False, save=True, run=runName, plotlims=plotlims_fnu)
+        # plot star-formation history
         _ = plotting.plot_fitted_sfh(fit, fname_spec, z_spec=z_spec, suffix=suffix, save=True)
-        # # plot posterior corner plot
-        _ = plotting.plot_corner(fit, fname_spec, z_spec, fit_instructions, filt_list, suffix=suffix, save=True)
-        # # plot calibration curve
-        _ = plotting.plot_calib(fit, fname_spec, z_spec=z_spec, suffix=suffix,
-                                save=True, plot_xlims=[plotlims_flam[0],plotlims_flam[1]])
+        # plot posterior corner plot
+        _ = plotting.plot_corner(fit, fname_spec, z_spec, fit_instructions, filt_list, suffix=suffix,
+                                 spec_only=spec_only, save=True)
+        if not spec_only:
+            # plot calibration curve
+            _ = plotting.plot_calib(fit, fname_spec, z_spec=z_spec, suffix=suffix,
+                                    save=True, plot_xlims=[plotlims_flam[0],plotlims_flam[1]])
 
     if save_tabs:
-        # # save posterior quantities to table
+        # save posterior quantities to table
         _ = plotting.save_posterior_sample_dists(fit, fname_spec, suffix=suffix, save=True)
-        # # save calib curve to table
-        _ = plotting.save_calib(fit, fname_spec, suffix=suffix, save=True)
+        if not spec_only:
+            # save calib curve to table
+            _ = plotting.save_calib(fit, fname_spec, suffix=suffix, save=True)
 
     # rename posterior
     os.rename(run_posterior_file, full_posterior_file)

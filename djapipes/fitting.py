@@ -214,7 +214,7 @@ def synthetic_photometry_msa(z, filt_list, spec_tab):
 # --------------------------------------------------------------
 # -------------------------------------------- CALIB PRIOR GUESS
 # --------------------------------------------------------------
-def guess_calib(ID, z, plot=False):
+def guess_calib(ID, z, plot=False, phot_xpos=None, spec_xpos=None):
     """
     Estimates calibration function to inform the calib prior in the pipes fitting routine
     
@@ -264,11 +264,11 @@ def guess_calib(ID, z, plot=False):
 
         post = np.percentile(random_models.T, (16, 50, 84), axis=0).T
 
-        plt.errorbar(eff_wavs/10000, y, yerr=yerr, marker='o', color="grey", zorder=10, ls=' ', lw=0.8)
-        plt.plot(spec_fluxes[:, 0]/10000, post[:, 0], color="grey", zorder=10, lw=0.1)
-        plt.plot(spec_fluxes[:, 0]/10000, post[:, 1], color="grey", zorder=10, label='Prior calib guess')
-        plt.plot(spec_fluxes[:, 0]/10000, post[:, 2], color="grey", zorder=10, lw=0.1)
-        plt.fill_between(spec_fluxes[:, 0]/10000, post[:, 0], post[:, 2], lw=0,
+        plt.errorbar(phot_xpos, y, yerr=yerr, marker='o', color="grey", zorder=10, ls=' ', lw=0.8)
+        plt.plot(spec_xpos, post[:, 0], color="grey", zorder=10, lw=0.1)
+        plt.plot(spec_xpos, post[:, 1], color="grey", zorder=10, label='Prior calib guess')
+        plt.plot(spec_xpos, post[:, 2], color="grey", zorder=10, lw=0.1)
+        plt.fill_between(spec_xpos, post[:, 0], post[:, 2], lw=0,
                         color="grey", alpha=0.3, zorder=9)
 
     return lsq_coeffs[0], param_uncertainties, covar
