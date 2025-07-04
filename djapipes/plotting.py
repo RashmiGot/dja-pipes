@@ -205,7 +205,7 @@ def plot_spec_phot_data(runid, fname_spec, fname_phot, z_spec, suffix, spec_only
     
     # ---------- SPECTRUM ---------- #
     ax.step(xpos, spec_fluxes,
-            zorder=-1, color='slategrey', alpha=0.7, lw=1.2)
+            zorder=-1, color='slategrey', alpha=0.7, lw=1)
     ax.fill_between(xpos, spec_fluxes-spec_efluxes, spec_fluxes+spec_efluxes,
                     zorder=-1, color='slategrey', alpha=0.1, step="mid")
 
@@ -969,10 +969,55 @@ def save_calib(fit, fname_spec, suffix, save=False):
         os.mkdir("./pipes/cats/" + fit.run)
 
     tabpath = "pipes/cats/" + fit.run + "/" + fname + '_' + suffix + '_calibcurve.csv'
-    tab.write(tabpath, format='csv', overwrite=True)
+    if save:
+        tab.write(tabpath, format='csv', overwrite=True)
 
     return None
 
+
+
+# --------------------------------------------------------------
+# ----------------------------------- EMISSION LINES FROM MSAEXP
+# --------------------------------------------------------------
+def save_posterior_msa_lsq_line_fluxes(fit, fname_spec, suffix, save=False):
+    """
+    Makes table of 16th, 50th, and 84th percentile values of residual line fluxes from lsq fit, saves table to csv file
+    
+    Parameters
+    ----------
+    fit : fit object from BAGPIPES (where fit = pipes.fit(galaxy, fit_instructions))
+    fname_spec : filename of spectrum e.g. 'rubies-uds3-v3_prism-clear_4233_62812.spec.fits', format=str
+    suffix : string containing sfh and dust information to be appended to output file name, format=str
+    save : specifies wherether or not to save the table, format=bool
+
+    Returns
+    -------
+    None
+    """
+
+    fit.posterior.get_advanced_quantities()
+
+    fname = fname_spec.split('.spec')[0]
+
+    # names of lines that were fit to bagpipes residual
+    msa_comp_names = fit.galaxy.msa_line_components
+
+    # column names for line fluxes
+    name_ext = ["_16", "_50", "_84"]
+    msa_comp_names_ext = [name_i+name_ext_i for name_i in msa_comp_names for name_ext_i in name_ext]
+
+    # extracting 16th, 50th, 84th perc line fluxes from bagpipes posterior
+    line_fluxes = np.percentile(np.asarray([lsq_i[0] for lsq_i in fit.galaxy.lsq_coeffs]), (16, 50, 84), axis=0).T
+    line_fluxes_flat = line_fluxes.flatten()
+
+    line_fluxes_tab = Table(data=line_fluxes_flat, names=msa_comp_names_ext)
+
+    # save table
+    tabpath = "pipes/cats/" + fit.run + "/" + fname + '_' + suffix + '_postcat_lsqfluxes.csv'
+    if save:
+        line_fluxes_tab.write(tabpath, format='csv', overwrite=True)
+
+    return None
 
 
 # --------------------------------------------------------------
