@@ -448,8 +448,8 @@ def load_spec(ID):
 
     spec_wavs = np.array(spec_tab['wave'])*1e4 # convert wavs to angstrom
 
-    filt_list = updated_filt_list(id) # filt list
-    wav_min, wav_max = Table.read(filt_list[0], format="ascii")[0][0], Table.read(filt_list[-1], format="ascii")[-1][0]
+    # filt_list = updated_filt_list(id) # filt list
+    # wav_min, wav_max = Table.read(filt_list[0], format="ascii")[0][0], Table.read(filt_list[-1], format="ascii")[-1][0]
 
     # spec_wavs_mask = (spec_wavs>7836) & (spec_wavs<50994) # wavs within photometric filter limits
     # spec_wavs_mask = (spec_wavs>wav_min) & (spec_wavs<wav_max)

@@ -841,7 +841,7 @@ def plot_calib(fit, fname_spec, z_spec, suffix, show=False, save=False, plot_xli
 # --------------------------------------------------------------
 # -------------------------------- TABLE OF POSTERIOR PROPERTIES
 # --------------------------------------------------------------
-def save_posterior_sample_dists(fit, fname_spec, suffix, save=False):
+def save_posterior_sample_dists(fit, fname_spec, spec_only, suffix, save=False):
     """
     Makes table of 16th, 50th, and 84th percentile values of all posterior quantities from BAGPIPES fit, saves table to csv file
     
@@ -849,6 +849,7 @@ def save_posterior_sample_dists(fit, fname_spec, suffix, save=False):
     ----------
     fit : fit object from BAGPIPES (where fit = pipes.fit(galaxy, fit_instructions))
     fname_spec : filename of spectrum e.g. 'rubies-uds3-v3_prism-clear_4233_62812.spec.fits', format=str
+    spec_only : fit spectrum only (ignore photometry), format=bool
     suffix : string containing sfh and dust information to be appended to output file name, format=str
     save : specifies wherether or not to save the table, format=bool
 
@@ -895,17 +896,19 @@ def save_posterior_sample_dists(fit, fname_spec, suffix, save=False):
     post_tab = hstack([post_tab_temp,post_tab_add])
 
     fname = fname_spec.split('.spec')[0]
-    fname_phot = fname + '.phot.cat'
+    
+    if not spec_only:
+        fname_phot = fname + '.phot.cat'
 
-    phot_colnames = ['file_spec', 'file_phot', 'file_zout', 'id_phot', 'dr']
-    phot_cols = Table.read(f'files/{fname_phot}', format='ascii.commented_header')[phot_colnames]
+        phot_colnames = ['file_spec', 'file_phot', 'file_zout', 'id_phot', 'dr']
+        phot_cols = Table.read(f'files/{fname_phot}', format='ascii.commented_header')[phot_colnames]
 
-    # number of photometric filters
-    id = int(fit.galaxy.ID)
-    filt_list = fitting.updated_filt_list(id) # list of valid filters
-    filt_num = len(filt_list)
+        # number of photometric filters
+        id = int(fit.galaxy.ID)
+        filt_list = fitting.updated_filt_list(id) # list of valid filters
+        filt_num = len(filt_list)
 
-    phot_cols.add_columns([filt_num], indexes=[-1], names=['filt_num'])
+        phot_cols.add_columns([filt_num], indexes=[-1], names=['filt_num'])
 
     # calculating and tabulating sf timescales
     timescales=[10,20,50,80,90]
@@ -924,7 +927,10 @@ def save_posterior_sample_dists(fit, fname_spec, suffix, save=False):
     linefluxes_tab = tabulate_modelled_line_fluxes(fit)
 
     ### saving posterior to csv table ###
-    tab_stacked = hstack([phot_cols, post_tab, timescales_tab, break_tab, linefluxes_tab])
+    if not spec_only:
+        tab_stacked = hstack([phot_cols, post_tab, timescales_tab, break_tab, linefluxes_tab])
+    elif spec_only:
+        tab_stacked = hstack([post_tab, timescales_tab, break_tab, linefluxes_tab])
 
     if not os.path.exists("./pipes/cats/" + fit.run):
         os.mkdir("./pipes/cats/" + fit.run)
