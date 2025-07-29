@@ -4,7 +4,7 @@ import os
 from astropy.table import Table
 import numpy as np
 import grizli.utils as utils
-import eazy
+from eazy import filters
 import msaexp.spectrum 
 # from msaexp import spectrum
 
@@ -201,7 +201,7 @@ def synthetic_photometry_msa(z, filt_list, spec_tab):
     
     for i in range(len(syn_phot)):
         filt_tab_i = Table.read(filt_list[i], format='ascii')
-        eazy_filt = eazy.filters.FilterDefinition(wave=filt_tab_i["col1"]/(1+z), throughput=filt_tab_i["col2"])
+        eazy_filt = filters.FilterDefinition(wave=filt_tab_i["col1"]/(1+z), throughput=filt_tab_i["col2"])
 
         syn_phot_tab = msaexp.spectrum.integrate_spectrum_filter(spec_tab, eazy_filt, z=z)
 
