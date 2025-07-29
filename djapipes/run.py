@@ -53,7 +53,7 @@ def fitting_params(runid, z_spec, sfh="continuity", n_age_bins=10, scale_disp=1.
         max_age = cosmo.age(0).to('Myr').value - cosmo.age(30).to('Myr').value
         age_at_z = cosmo.age(z).to('Myr').value - cosmo.age(30).to('Myr').value
 
-        age_bins = [0., 10., 50] # sets initial two age bin edges
+        age_bins = [0., 3., 10., 50] # sets initial two age bin edges
         for i in np.logspace(np.log10(100), np.log10(max_age), n_age_bins):
             age_bins.append(i)
         age_bins=np.array(age_bins)
