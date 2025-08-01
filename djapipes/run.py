@@ -120,10 +120,10 @@ def fitting_params(runid, z_spec, sfh="continuity", n_age_bins=10, scale_disp=1.
     elif dust_type=="salim":
         dust["type"] = "Salim"
         dust["Av"] = (0., 6.)                # vary Av mag
-        dust["delta"] = (-0.3, 0.3)          # vary att. curve slope
-        dust["delta_prior"] = "Gaussian"     # prior on att. curve slope
-        dust["delta_prior_mu"] = 0           # avg. of prior on att. curve slope
-        dust["delta_prior_sigma"] = 0.1      # standard dev. of prior on att. curve slope
+        dust["delta"] = (-1.0, 0.3)          # vary att. curve slope
+        dust["delta_prior"] = "uniform"     # prior on att. curve slope
+        # dust["delta_prior_mu"] = 0           # avg. of prior on att. curve slope
+        # dust["delta_prior_sigma"] = 0.1      # standard dev. of prior on att. curve slope
         dust["B"] = (0., 3)                  # vary 2175A bump strength
         dust["B_prior"] = "uniform"          # prior on 2175A bump strength
     elif dust_type=="kriek":

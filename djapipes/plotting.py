@@ -886,6 +886,12 @@ def save_posterior_sample_dists(fit, fname_spec, spec_only, suffix, save=False):
     # making an astropy Table
     post_tab_temp = Table(np.array(tab_row_vals), names=tab_colnames)
 
+    # add SFR on 10 Myr timescale
+    sfr_timescale=10
+    post_sfr10 = calc_sfrX(fit, sfr_timescale=sfr_timescale)
+    colname_sfr10 = [f"sfr_{sfr_timescale}m" + post_ext_i for post_ext_i in post_ext]
+    post_sfr10_tab = Table(post_sfr10.flatten(), names=colname_sfr10)
+
     ### add UVJ to post  tab ###
     post_uvj = np.percentile(fit.posterior.samples["uvj"], (16, 50, 84), axis=0).T
     to_add = 'restU', 'restV', 'restJ'
@@ -893,7 +899,7 @@ def save_posterior_sample_dists(fit, fname_spec, spec_only, suffix, save=False):
     post_tab_add = Table(post_uvj.flatten(), names=to_add_full)
 
     # hstack tables
-    post_tab = hstack([post_tab_temp,post_tab_add])
+    post_tab = hstack([post_tab_temp,post_sfr10_tab,post_tab_add])
 
     fname = fname_spec.split('.spec')[0]
     
@@ -1264,3 +1270,33 @@ def tabulate_modelled_line_fluxes(fit):
     linefluxes_tab = Table(data=line_flux_values, names=keys_colnames, units=[u.erg/u.second/u.centimeter/u.centimeter] * len(keys_colnames))
 
     return linefluxes_tab
+
+
+# --------------------------------------------------------------
+# ------------------------------ TABULATE SFR ON X Myr TIEMSCALE
+# --------------------------------------------------------------
+def calc_sfrX(fit, sfr_timescale=100):
+    """
+    Calculate the SFR on a given timescale from the SFH posterior samples
+
+    Parameters:
+    -----------
+    fit : fit object from BAGPIPES (where fit = pipes.fit(galaxy, fit_instructions))
+    sfr_timescale : timescale in Myr over which to calculate the SFR, format=float
+    
+    Returns:
+    --------
+    sfrX_perc : tuple of 16th, 50th, and 84th percentiles of the SFR on the given timescale
+    """
+
+    sfr_timescale *= 1e6
+
+    sfh_obj = fit.posterior.sfh
+    sfh_post = fit.posterior.samples["sfh"]
+
+    age_mask = (sfh_obj.ages < sfr_timescale)
+
+    sfrX = np.sum(sfh_post[:,age_mask]*sfh_obj.age_widths[age_mask], axis=1) / (sfh_obj.age_widths[age_mask].sum())
+    sfrX_perc = np.percentile(sfrX, (16,50,84))
+
+    return(sfrX_perc)
