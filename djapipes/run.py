@@ -121,11 +121,16 @@ def fitting_params(runid, z_spec, sfh="continuity", n_age_bins=10, scale_disp=1.
         dust["type"] = "Salim"
         dust["Av"] = (0., 6.)                # vary Av mag
         dust["delta"] = (-1.0, 0.3)          # vary att. curve slope
-        dust["delta_prior"] = "uniform"     # prior on att. curve slope
+        dust["delta_prior"] = "uniform"      # prior on att. curve slope
         # dust["delta_prior_mu"] = 0           # avg. of prior on att. curve slope
         # dust["delta_prior_sigma"] = 0.1      # standard dev. of prior on att. curve slope
         dust["B"] = (0., 3)                  # vary 2175A bump strength
         dust["B_prior"] = "uniform"          # prior on 2175A bump strength
+    elif dust_type=="salim_fixed":           # see pg. 13 of Salim+18 (average curve of all SFR galaxies)
+        dust["type"] = "Salim"
+        dust["Av"] = (0., 6.)                # vary Av mag
+        dust["delta"] = -0.4                 # vary att. curve slope
+        dust["B"] = 1.3                      # vary 2175A bump strength
     elif dust_type=="kriek":
         dust["type"] = "Salim"               # Specify parameters within the "Salim" model to match Kriek & Conroy 2013
         dust["Av"] = (0., 6.)                # vary Av magnitude
