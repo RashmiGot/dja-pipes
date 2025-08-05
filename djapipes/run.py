@@ -306,9 +306,9 @@ def run_pipes_on_dja_spec(file_spec="rubies-egs61-v3_prism-clear_4233_42328.spec
     if not spec_only:
         try:
             database.pull_phot_from_db(fname_spec, fname_phot, filePath)
-        except IndexError:
-            print("No photometry found")
-            return None
+        except (IndexError, ValueError):
+            print("No photometry found, fitting only spectrum")
+            spec_only = True
 
     ##################################
     # -------- BAGPIPES RUN -------- #
