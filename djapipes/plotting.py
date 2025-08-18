@@ -1108,7 +1108,7 @@ def add_lines_msa(z_spec, wavs_for_scaling=None):
 # --------------------------------------------------------------
 # ------------------------------------ STAR-FORMATION TIMESCALES
 # --------------------------------------------------------------
-def calc_sf_timescales(fit, z_spec, timescales=[10,20,50,80,90]):
+def calc_sf_timescales(fit, z_spec, timescales=[10,20,50,80,90], return_full=False):
     """
     Calculates SF timescales t10, t50, t90
     tX: the look-back time at which X% of the stellar mass was already formed (Belli et al. 2019)
@@ -1118,6 +1118,7 @@ def calc_sf_timescales(fit, z_spec, timescales=[10,20,50,80,90]):
     fit : fit object from BAGPIPES (where fit = pipes.fit(galaxy, fit_instructions))
     z_spec : spectroscopic redshift, format=float
     timescales : sequence of percentage timescales to calculate, i.e. [X, Y, Z] to calculate [tX, tY, tZ], format=list
+    return_full : if True, returns full array of timescales for each sample, format=bool
 
     Returns
     -------
@@ -1144,6 +1145,9 @@ def calc_sf_timescales(fit, z_spec, timescales=[10,20,50,80,90]):
         indices = [np.abs(Mstar_sum - M).argmin() for M in Mstar_percs]
 
         timescale_ages[i] = ages_interp[indices] # Gyr
+
+    if return_full:
+        return timescale_ages
 
     timescale_arr = np.zeros((len(timescales),3))
     for j in range(len(timescales)):
