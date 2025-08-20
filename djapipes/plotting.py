@@ -862,7 +862,7 @@ def save_posterior_sample_dists(fit, fname_spec, spec_only, suffix, save=False):
 
     samples = fit.posterior.samples
     keys = list(samples.keys())
-    to_remove = ['photometry', 'spectrum', 'spectrum_full', 'dust_curve', 'calib', 'uvj']
+    to_remove = ['photometry', 'spectrum', 'spectrum_full', 'dust_curve', 'calib', 'uvj', 'line_fluxes']
     keys_mod = [key for key in keys if key not in to_remove]
 
     tab = []
@@ -930,20 +930,63 @@ def save_posterior_sample_dists(fit, fname_spec, spec_only, suffix, save=False):
     break_tab = Table(data=np.array(break_values), names=["bb", "bb_err", "d4000", "d4000_err"])
 
     # tabulating modelled line fluxes from BAGPIPES posterior
-    linefluxes_tab = tabulate_modelled_line_fluxes(fit)
+    # linefluxes_tab = tabulate_modelled_line_fluxes(fit)
 
     ### saving posterior to csv table ###
     if not spec_only:
-        tab_stacked = hstack([phot_cols, post_tab, timescales_tab, break_tab, linefluxes_tab])
+        tab_stacked = hstack([phot_cols, post_tab, timescales_tab, break_tab])
     elif spec_only:
-        tab_stacked = hstack([post_tab, timescales_tab, break_tab, linefluxes_tab])
+        tab_stacked = hstack([post_tab, timescales_tab, break_tab])
 
-    if not os.path.exists("./pipes/cats/" + fit.run):
-        os.mkdir("./pipes/cats/" + fit.run)
+    if save:
+        if not os.path.exists("./pipes/cats/" + fit.run):
+            os.mkdir("./pipes/cats/" + fit.run)
 
-    tabpath = "pipes/cats/" + fit.run + "/" + fname + '_' + suffix + '_postcat.csv'
-    tab_stacked.write(tabpath, format='csv', overwrite=True)
+        tabpath = "pipes/cats/" + fit.run + "/" + fname + '_' + suffix + '_postcat.csv'
+        tab_stacked.write(tabpath, format='csv', overwrite=True)
 
+    return None
+
+# --------------------------------------------------------------
+# ------------------------------- TABLE OF POSTERIOR LINE FLUXES
+# --------------------------------------------------------------
+def save_posterior_line_fluxes(fit, fname_spec, suffix, save=False):
+    """
+    Extracts line fluxes from the fit posterior samples
+
+    Parameters
+    ----------
+    fit : fit object from BAGPIPES (where fit = pipes.fit(galaxy, fit_instructions))
+    fname_spec : filename of spectrum e.g. 'rubies-uds3-v3_prism-clear_4233_62812.spec.fits', format=str
+    suffix : string containing sfh and dust information to be appended to output file name, format=str
+    save : specifies wherether or not to save the table, format=bool
+
+    Returns
+    -------
+    None
+    """
+    
+    if "line_fluxes" in fit.posterior.samples.keys():
+    
+        line_fluxes_post = fit.posterior.samples["line_fluxes"]
+
+        line_fluxes_array = np.array([list(line_dict.values()) for line_dict in line_fluxes_post])
+        line_fluxes_perc = np.percentile(line_fluxes_array, (16, 50, 84), axis=0).T
+
+        line_fluxes_unit = u.erg/u.second/u.centimeter/u.centimeter
+
+        line_fluxes_tab = Table([list(fit.posterior.samples["line_fluxes"][0].keys()), line_fluxes_perc[:,0,], line_fluxes_perc[:,1,], line_fluxes_perc[:,2,]],
+                                names=["line_name", "perc_16", "perc_50", "perc_84"],
+                                units=["", line_fluxes_unit, line_fluxes_unit, line_fluxes_unit])
+        
+        if save:
+            if not os.path.exists("./pipes/cats/" + fit.run):
+                os.mkdir("./pipes/cats/" + fit.run)
+
+            fname = fname_spec.split('.spec')[0]
+            tabpath = "pipes/cats/" + fit.run + "/" + fname + '_' + suffix + '_postcat_pipes_linefluxes.csv'
+            line_fluxes_tab.write(tabpath, format='csv', overwrite=True)
+    
     return None
 
 
