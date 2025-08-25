@@ -648,7 +648,7 @@ def plot_fitted_sfh(fit, fname_spec, z_spec, suffix, show=False, save=False):
 # ---------------------------------------- POSTERIOR CORNER PLOT
 # --------------------------------------------------------------
 
-def plot_corner(fit, fname_spec, z_spec, fit_instructions, filt_list, suffix, spec_only=False, show=False, save=False, bins=25):
+def plot_corner(fit, fname_spec, z_spec, fit_instructions, filt_list, suffix, corner_full=True, corner_sci=True, spec_only=False, show=False, save=False, bins=25):
     """
     Makes corner plot of the fitted parameters
     
@@ -659,6 +659,8 @@ def plot_corner(fit, fname_spec, z_spec, fit_instructions, filt_list, suffix, sp
     z_spec : spectroscopic redshift, format=float
     fit_instructions : dictionary of bagpipes input parameters
     filt_list : array of paths to filter files, each element is a string, format=numpy array
+    corner_full : if True, plot all fitted parameters, if False, only plot science parameters, format=bool
+    corner_sci : if True, plot only select science parameters (e.g. not dsfr params from SFH), format=bool
     show : specifies wherether or not to display the image, format=bool
     save : specifies wherether or not to save the image, format=bool
 
@@ -667,79 +669,141 @@ def plot_corner(fit, fname_spec, z_spec, fit_instructions, filt_list, suffix, sp
     None
     """
 
-    names = fit.fitted_model.params
-    samples = np.copy(fit.posterior.samples2d)
-
-    # Set up axis labels
-    # labels = fit.fitted_model.params.copy()
-    labels = pipes.plotting.general.fix_param_names(names)
-
-    # Log any parameters with log_10 priors to make them easier to see
-    for i in range(fit.fitted_model.ndim):
-        if fit.fitted_model.pdfs[i] == "log_10":
-            samples[:, i] = np.log10(samples[:, i])
-
-            labels[i] = "log_10(" + labels[i] + ")"
-
-    # Replace any r parameters for Dirichlet distributions with t_x vals
-    j = 0
-    for i in range(fit.fitted_model.ndim):
-        if "dirichlet" in fit.fitted_model.params[i]:
-            comp = fit.fitted_model.params[i].split(":")[0]
-            n_x = fit.fitted_model.model_components[comp]["bins"]
-            t_percentile = int(np.round(100*(j+1)/n_x))
-
-            samples[:, i] = fit.posterior.samples[comp + ":tx"][:, j]
-            j += 1
-
-            labels[i] = "t" + str(t_percentile) + " / Gyr"
-
-    # Make the corner plot
-    fig = corner.corner(samples, bins=bins, labels=labels, color="k",
-                        quantiles=[0.16, 0.5, 0.84],
-                        show_titles=True, smooth=1., title_kwargs={"fontsize": 13},
-                        hist_kwargs={"density": True, "histtype": "stepfilled",
-                                     "color": "firebrick", "edgecolor": "firebrick", "lw": 2, "alpha": 0.3})
-                        #smooth1d=1.)
-
     if not spec_only:
-            # overplot priors
+        # overplot priors
         fit_instructions_temp = copy.deepcopy(fit_instructions)
         del fit_instructions_temp['R_curve']
 
         priors = pipes.fitting.check_priors(fit_instructions=fit_instructions_temp, filt_list=filt_list, n_draws=5000)
         priors.get_advanced_quantities()
 
-        # Access the axes of the figure for additional customization
-        axes = fig.get_axes()
+    if corner_full: # plot full corner, with all fitted parameters
+
+        names = fit.fitted_model.params
+        samples = np.copy(fit.posterior.samples2d)
+
+        # Set up axis labels
+        # labels = fit.fitted_model.params.copy()
+        labels = pipes.plotting.general.fix_param_names(names)
+
+        # Log any parameters with log_10 priors to make them easier to see
+        for i in range(fit.fitted_model.ndim):
+            if fit.fitted_model.pdfs[i] == "log_10":
+                samples[:, i] = np.log10(samples[:, i])
+
+                labels[i] = "log_10(" + labels[i] + ")"
+
+        # Replace any r parameters for Dirichlet distributions with t_x vals
+        j = 0
+        for i in range(fit.fitted_model.ndim):
+            if "dirichlet" in fit.fitted_model.params[i]:
+                comp = fit.fitted_model.params[i].split(":")[0]
+                n_x = fit.fitted_model.model_components[comp]["bins"]
+                t_percentile = int(np.round(100*(j+1)/n_x))
+
+                samples[:, i] = fit.posterior.samples[comp + ":tx"][:, j]
+                j += 1
+
+                labels[i] = "t" + str(t_percentile) + " / Gyr"
+
+        # Make the corner plot
+        fig1 = corner.corner(samples, bins=bins, labels=labels, color="k",
+                            quantiles=[0.16, 0.5, 0.84],
+                            show_titles=True, smooth=1., title_kwargs={"fontsize": 13},
+                            hist_kwargs={"density": True, "histtype": "stepfilled",
+                                        "color": "firebrick", "edgecolor": "firebrick", "lw": 2, "alpha": 0.3})
+                            #smooth1d=1.)
         
-        # loop of each histogram
-        for i in range(len(names)):
-            ax = axes[i * (len(names) + 1)]  # spacing of diagonal axes
-            ax.hist(priors.samples[names[i]],
-                    bins=bins, density=True,
-                    histtype='stepfilled', ls='-', lw=2, edgecolor="steelblue", zorder=-1, alpha=0.3)
-        
+        # overplot priors
+        if not spec_only:
+            # Access the axes of the figure for additional customization
+            axes1 = fig1.get_axes()
+            
+            # loop of each histogram
+            for i in range(len(names)):
+                ax = axes1[i * (len(names) + 1)]  # spacing of diagonal axes
+                ax.hist(priors.samples[names[i]],
+                        bins=bins, density=True,
+                        histtype='stepfilled', ls='-', lw=2, edgecolor="steelblue", zorder=-1, alpha=0.3)
+            
 
-    # fname = fname_spec.split('.spec')[0]
-    # plt.title(fname+'          $z=$'+str(np.round(z_spec,4)), loc='right')
+        # fname = fname_spec.split('.spec')[0]
+        # plt.title(fname+'          $z=$'+str(np.round(z_spec,4)), loc='right')
 
-    # figure_timestamp(fig, fontsize=8, ha='right', va='top')
+        # figure_timestamp(fig, fontsize=8, ha='right', va='top')
 
-    plt.tight_layout()
+        plt.tight_layout()
 
-    if save:
-        fname = fname_spec.split('.spec')[0]
-        plotpath = "pipes/plots/" + fit.run + "/" + fname + '_' + suffix + '_corner'
-        # plt.savefig(plotpath+'.pdf', transparent=True)
-        plt.savefig(plotpath+'.png', transparent=True)
-        plt.close(fig)
+        if save:
+            fname = fname_spec.split('.spec')[0]
+            plotpath = "pipes/plots/" + fit.run + "/" + fname + '_' + suffix + '_corner'
+            # plt.savefig(plotpath+'.pdf', transparent=True)
+            plt.savefig(plotpath+'.png', transparent=True)
+            plt.close(fig1)
 
-    if show:
-        plt.show()
-        plt.close(fig)
+        if show:
+            plt.show()
+            plt.close(fig1)
 
-    return fig
+    
+    if corner_sci: # plot corner with only select science parameters
+
+        names = ['calib:1', 'stellar_mass', 'continuity:metallicity', 'sfr', 't50', 'ssfr', 'mass_weighted_age', 'dust:Av', 'nebular:logU']
+        if spec_only:
+            names.remove('calib:1')
+        labels = pipes.plotting.general.fix_param_names(names)
+
+        corner_samples = np.zeros((fit.posterior.n_samples,len(names)))
+        pipes_samplenames = fit.posterior.samples.keys()
+
+        for i, name in enumerate(names):
+            if name in pipes_samplenames:
+                corner_samples[:, i] = fit.posterior.samples[name]
+            else:
+                # If the parameter is not in the samples, you might want to handle it differently
+                t50_arr = calc_sf_timescales(fit, fit.fit_instructions["redshift_prior_mu"], [50], return_full=True)
+                corner_samples[:, i] = t50_arr[:,0]
+
+        # Make the corner plot
+        fig2 = corner.corner(corner_samples, bins=25, labels=labels, color="k",
+                            quantiles=[0.16, 0.5, 0.84],
+                            show_titles=True, smooth=1., title_kwargs={"fontsize": 13},
+                            hist_kwargs={"density": True, "histtype": "stepfilled",
+                                        "color": "firebrick", "edgecolor": "firebrick", "lw": 2, "alpha": 0.3})
+
+        # overplot priors
+        if not spec_only:
+            # Access the axes of the figure for additional customization
+            axes2 = fig2.get_axes()
+
+            # loop of each histogram
+            for i in range(len(names)):
+                if names[i] in pipes_samplenames:
+                    ax = axes2[i * (len(names) + 1)]  # spacing of diagonal axes
+                    ax.hist(priors.samples[names[i]],
+                            bins=25, density=True,
+                            histtype='stepfilled', ls='-', lw=2, edgecolor="steelblue", zorder=-1, alpha=0.3)
+
+
+        plt.tight_layout()
+
+        if save:
+            fname = fname_spec.split('.spec')[0]
+            plotpath = "pipes/plots/" + fit.run + "/" + fname + '_' + suffix + '_sci_corner'
+            # plt.savefig(plotpath+'.pdf', transparent=True)
+            plt.savefig(plotpath+'.png', transparent=True)
+            plt.close(fig2)
+
+        if show:
+            plt.show()
+            plt.close(fig2)
+
+        if corner_full and corner_sci:
+            return fig1, fig2
+        elif corner_full and not corner_sci:
+            return fig1
+        elif not corner_full and corner_sci:
+            return fig2
 
 
 
