@@ -1,9 +1,11 @@
 # ------- LIBRARIES ------ #
 import bagpipes as pipes
 import numpy as np
+from eazy import filters
 
 from astropy.io import fits
 from astropy.cosmology import Planck13 as cosmo
+from astropy.table import Table
 
 import re
 
@@ -53,7 +55,7 @@ def fitting_params(runid, z_spec, sfh="continuity", n_age_bins=10, scale_disp=1.
         max_age = cosmo.age(0).to('Myr').value - cosmo.age(30).to('Myr').value
         age_at_z = cosmo.age(z).to('Myr').value - cosmo.age(30).to('Myr').value
 
-        age_bins = [0., 3., 10., 50] # sets initial two age bin edges
+        age_bins = [0., 3., 10., 25., 50.] # sets initial two age bin edges
         for i in np.logspace(np.log10(100), np.log10(max_age), n_age_bins):
             age_bins.append(i)
         age_bins=np.array(age_bins)
@@ -140,7 +142,7 @@ def fitting_params(runid, z_spec, sfh="continuity", n_age_bins=10, scale_disp=1.
     fit_instructions["dust"] = dust
 
     ## ---------- ## max age of birth clouds: Gyr
-    fit_instructions["t_bc"] = 0.01          # 10 Myr birth cloud age
+    fit_instructions["t_bc"] = 0.025         # 25 Myr birth cloud age
     
     ## ---------- ## agn component
     agn = {}
@@ -331,7 +333,12 @@ def run_pipes_on_dja_spec(file_spec="rubies-egs61-v3_prism-clear_4233_42328.spec
                               spec_units='ergscma',
                               phot_units='ergscma',
                               out_units='ergscma')
-
+        
+        # store filter normalisations to galaxy object
+        spec = galaxy.spectrum
+        spec_tab = Table([spec[:,0]/1e4, spec[:,1], spec[:,2]], names=('wave', 'flux', 'err'))
+        galaxy.filter_int_arr, galaxy.filt_norm_arr, galaxy.filt_valid = fitting.calc_filt_int(filt_list, spec_tab, z_spec)
+    
     # generating fit instructions
     fit_instructions = fitting_params(runid, z_spec, sfh=sfh, n_age_bins=n_age_bins, scale_disp=scale_disp,
                                       dust_type=dust_type,
@@ -344,12 +351,14 @@ def run_pipes_on_dja_spec(file_spec="rubies-egs61-v3_prism-clear_4233_42328.spec
                                fit_instructions["R_curve"][:,1])
     galaxy.R_curve_interp = R_curve_interp
 
-    # add msa line components to galaxy object
     galaxy.msa_line_components = msa_line_components
-    galaxy.msa_model = []
-
-    # add component to store least-squares coeffs. from msaexp fit
-    galaxy.lsq_coeffs = []
+    galaxy.msa_phot = None
+    if msa_line_components is not None:
+        # add msa line components to galaxy object
+        galaxy.msa_model = []
+        galaxy.msa_phot = []
+        # add component to store least-squares coeffs. from msaexp fit
+        galaxy.lsq_coeffs = []
 
     # specify whether or not to use extended wavelength range
     galaxy.extended_prism_wavs = extended_prism_wavs

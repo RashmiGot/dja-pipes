@@ -142,6 +142,52 @@ def updated_filt_list(ID):
     return filt_list[phot_flux_mask]
 
 
+def calc_filt_int(filt_list, spec, z):
+    """Calculate filter interpolated throughput arrays and normalisations
+    
+    Parameters
+    ----------
+    filt_list : list of filter filenames; format=numpy array
+    spec : spectrum table with columns 'wave', 'flux', 'err'; format=astropy Table
+    z : spectroscopic redshift, format=float
+        
+    Returns
+    -------
+    filter_int_arr : interpolated filter throughput arrays; format=2D numpy array
+    filt_norm_arr : normalization values for each filter; format=1D numpy array
+    valid : boolean for valid spectrum pixels; format=1D numpy array
+    """
+
+    filter_int_arr, filt_norm_arr = np.zeros((len(filt_list), len(spec))), np.zeros(len(filt_list))
+
+    for i in range(len(filt_list)):
+        filt_tab_i = Table.read(filt_list[i], format='ascii')
+        filt = filters.FilterDefinition(wave=filt_tab_i["col1"]/(1+z), throughput=filt_tab_i["col2"])
+
+        # Interpolate bandpass to wavelength grid
+        filter_int = np.interp(
+            spec["wave"],
+            filt.wave / 1.0e4 * (1 + z),
+            filt.throughput,
+            left=0.0,
+            right=0.0,
+        )
+
+        filter_int_arr[i] = filter_int
+
+        if "valid" in spec.colnames:
+            valid = spec["valid"]
+        else:
+            valid = (spec["err"] > 0) & np.isfinite(spec["err"] + spec["flux"])
+
+        # Normalization of filter sampled by the spectrum
+        filt_norm = np.trapz(
+            (filter_int / spec["wave"])[valid], spec["wave"][valid]
+        )
+
+        filt_norm_arr[i] = filt_norm
+    
+    return filter_int_arr, filt_norm_arr, valid
 
 
 # --------------------------------------------------------------
