@@ -377,13 +377,7 @@ def load_phot(ID):
     phot_tab = Table.read(f'files/{fname_phot_out}', format='ascii.commented_header')
 
     # jwst filter list
-    # filt_list = np.loadtxt("../filters/filt_list.txt", dtype="str")
-    # filt_list = djautils.read_filter_list("filt_list.txt")
     filt_list = updated_filt_list(id)
-
-    # extract fluxes from cat (muJy); '{filter}_tot_1'==0.5'' aperture
-    # flux_colNames = [filt_list_i.split('/')[-1].split('.')[0]+'_tot_1' for filt_list_i in filt_list]
-    # eflux_colNames = [filt_list_i.split('/')[-1].split('.')[0]+'_etot_1' for filt_list_i in filt_list]
 
     flux_colNames = [
         os.path.basename(filt_list_i).split('.')[0]+'_tot_1'
@@ -402,9 +396,10 @@ def load_phot(ID):
     zp_array = [zpoints_sub[zpoints_sub["f_name"]==flux_colName]["zp"][0] for flux_colName in flux_colNames]
 
     # make flux arrays and correct for zeropoints
-    fluxes_muJy_no_zp = np.lib.recfunctions.structured_to_unstructured(np.array(phot_tab[list(flux_colNames)]))[0]
-    fluxes_muJy = fluxes_muJy_no_zp * zp_array
+    fluxes_muJy = np.lib.recfunctions.structured_to_unstructured(np.array(phot_tab[list(flux_colNames)]))[0]
+    fluxes_muJy *= zp_array
     efluxes_muJy = np.lib.recfunctions.structured_to_unstructured(np.array(phot_tab[list(eflux_colNames)]))[0]
+    efluxes_muJy *= zp_array
 
     phot_flux_mask = (fluxes_muJy>-90) & (efluxes_muJy>0)
 

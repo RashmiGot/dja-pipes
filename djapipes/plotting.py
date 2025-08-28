@@ -148,8 +148,9 @@ def plot_spec_phot_data(runid, fname_spec, fname_phot, z_spec, suffix, spec_only
         zp_array = [zpoints_sub[zpoints_sub["f_name"]==flux_colName]["zp"][0] for flux_colName in flux_colNames]
         
         phot_fluxes_temp = np.lib.recfunctions.structured_to_unstructured(np.array(phot_tab[list(flux_colNames)]))
-        phot_fluxes_temp = phot_fluxes_temp * zp_array
+        phot_fluxes_temp *= zp_array
         phot_efluxes_temp = np.lib.recfunctions.structured_to_unstructured(np.array(phot_tab[list(eflux_colNames)]))
+        phot_efluxes_temp *= zp_array
 
         phot_flux_mask = (phot_fluxes_temp>-90) & (phot_efluxes_temp>0)
 
