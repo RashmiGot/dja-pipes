@@ -316,7 +316,11 @@ def plot_fitted_spectrum(fit, fname_spec, z_spec, suffix, spec_only=False, f_lam
         spec_fluxes = fit.galaxy.spectrum[:,1]*calib_50
         spec_efluxes = fit.galaxy.spectrum[:,2]*calib_50
 
-        phot_post = np.percentile(fit.posterior.samples["photometry"], (16, 50, 84), axis=0).T
+        # phot_post = np.percentile(fit.posterior.samples["photometry"], (16, 50, 84), axis=0).T
+        if fit.galaxy.msa_phot is not None:
+            phot_post = np.percentile(fit.galaxy.msa_phot, (16, 50, 84), axis=0).T
+        else:
+            phot_post = np.percentile(fit.posterior.samples["photometry"], (16, 50, 84), axis=0).T
 
         phot_flux_mask = fit.galaxy.photometry[:,2]<1e90
 
