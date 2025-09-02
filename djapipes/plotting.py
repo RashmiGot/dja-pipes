@@ -334,6 +334,9 @@ def plot_fitted_spectrum(fit, fname_spec, z_spec, suffix, spec_only=False, f_lam
 
         phot_residual = (phot_fluxes - phot_fluxes_model) / phot_efluxes
 
+    if "noise:scaling" in list(fit.posterior.samples):
+        spec_efluxes *= np.percentile(fit.posterior.samples["noise:scaling"], 50)
+
     if fit.galaxy.msa_line_components is not None:
         msa_lsqfit_fluxes = np.percentile(fit.galaxy.msa_model, 50, axis=0).T
 
