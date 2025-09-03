@@ -1010,6 +1010,11 @@ def save_posterior_sample_dists(fit, fname_spec, spec_only, suffix, save=False):
     elif spec_only:
         tab_stacked = hstack([post_tab, timescales_tab, break_tab])
 
+    # save runtime in table
+    if "runtime" in fit.results.keys():
+        runtime = np.round(fit.results["runtime"], 2)
+        tab_stacked.add_column(runtime, name="runtime")
+
     if save:
         if not os.path.exists("./pipes/cats/" + fit.run):
             os.mkdir("./pipes/cats/" + fit.run)
