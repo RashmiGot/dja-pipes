@@ -122,7 +122,7 @@ def fitting_params(runid, z_spec, sfh="continuity", n_age_bins=10, scale_disp=1.
     elif dust_type=="salim":                 # parameters taken from Carnall+24 (EXCELS)
         dust["type"] = "Salim"
         dust["Av"] = (0., 6.)                # vary Av mag
-        dust["delta"] = (-0.3, 0.3)          # vary att. curve slope
+        dust["delta"] = (-1.0, 0.3)          # vary att. curve slope (-1.0 taken roughly from Salim+18 from high-z analogues, see eq. 7)
         dust["delta_prior"] = "uniform"      # prior on att. curve slope
         dust["delta_prior_mu"] = 0           # avg. of prior on att. curve slope
         dust["delta_prior_sigma"] = 0.1      # standard dev. of prior on att. curve slope
