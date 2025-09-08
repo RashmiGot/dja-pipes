@@ -227,7 +227,9 @@ def run_pipes_on_dja_spec(file_spec="rubies-egs61-v3_prism-clear_4233_42328.spec
                           sfh="continuity", n_age_bins=10, scale_disp=1.3, dust_type="kriek",
                           msa_line_components=None,
                           extended_prism_wavs=False,
-                          use_msa_resamp=False, fit_agn=False, fit_dla=False, fit_mlpoly=False, make_plots=True, save_tabs=True,
+                          use_msa_resamp=False, fit_agn=False, fit_dla=False, fit_mlpoly=False,
+                          pool=4,
+                          make_plots=True, save_tabs=True,
                           suffix=None,
                           **kwargs):
     """
@@ -380,7 +382,7 @@ def run_pipes_on_dja_spec(file_spec="rubies-egs61-v3_prism-clear_4233_42328.spec
     fit = pipes.fit(galaxy, fit_instructions, run=runName)
 
     # fitting  spectrum and photometry with bagpipes
-    fit.fit(verbose=False, mpi_serial=True, sampler='nautilus', pool=4)
+    fit.fit(verbose=False, sampler='nautilus', pool=pool)
 
     ##################################
     # ---------- PLOTTING ---------- #
