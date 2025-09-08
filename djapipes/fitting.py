@@ -489,16 +489,14 @@ def load_spec(ID):
 
     spec_wavs = np.array(spec_tab['wave'])*1e4 # convert wavs to angstrom
 
-    # filt_list = updated_filt_list(id) # filt list
-    # wav_min, wav_max = Table.read(filt_list[0], format="ascii")[0][0], Table.read(filt_list[-1], format="ascii")[-1][0]
-
     spec_wavs_mask = (spec_wavs>7000) & (spec_wavs<53000) # wavs within photometric filter limits
-    # spec_wavs_mask = (spec_wavs>wav_min) & (spec_wavs<wav_max)
-    # spec_wavs_mask = (spec_wavs>(spec_wavs.min()+100)) & (spec_wavs<(spec_wavs.max()-100))
+
+    _sys_err = 0.02 # set a systematic error floor of 2%
 
     flux_muJy = np.array(spec_tab['flux'])
-    fluxerr_muJy = np.array(spec_tab['err'])
-    fluxerr_muJy[np.invert(spec_tab['line_mask'])] = np.nanmean(fluxerr_muJy) * 1e3
+    fluxerr0_muJy = np.array(spec_tab['err'])
+    fluxerr_muJy = np.sqrt(fluxerr0_muJy**2 + (np.maximum(_sys_err * flux_muJy, 0))**2)
+    fluxerr_muJy[np.invert(spec_tab['line_mask'])] = np.nanmean(fluxerr_muJy) * 1e3 # only if line masking is used
     flux_cgs = convert_mujy2cgs(flux_muJy,spec_wavs)
     fluxerr_cgs = convert_mujy2cgs(fluxerr_muJy,spec_wavs)
 
