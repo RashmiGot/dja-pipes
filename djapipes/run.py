@@ -210,10 +210,10 @@ def fitting_params(runid, z_spec, sfh="continuity", n_age_bins=10, scale_disp=1.
             mlpoly["order"] = 4
             fit_instructions["calib"] = mlpoly
 
-    ## ---------- ## white noise scaling
+    ## ---------- ## white noise scaling (parameters chosen as in Carnall+24 - EXCELS)
     noise = {}
     noise["type"] = "white_scaled"
-    noise["scaling"] = (1.,10.)
+    noise["scaling"] = (0.1, 10.)
     noise["scaling_prior"] = "log_10"
     fit_instructions["noise"] = noise
 
@@ -380,7 +380,7 @@ def run_pipes_on_dja_spec(file_spec="rubies-egs61-v3_prism-clear_4233_42328.spec
     fit = pipes.fit(galaxy, fit_instructions, run=runName)
 
     # fitting  spectrum and photometry with bagpipes
-    fit.fit(verbose=False, sampler='nautilus', pool=10)
+    fit.fit(verbose=False, mpi_serial=True, sampler='nautilus', pool=4)
 
     ##################################
     # ---------- PLOTTING ---------- #
