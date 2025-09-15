@@ -108,11 +108,7 @@ def updated_filt_list(ID):
     filt_list[phot_flux_mask] : masked filter list, format=numpy array
     """
 
-    id = int(ID)
-
-    speclist_cat = Table.read('spec_cat_temp.csv', format='csv')
-
-    fname_phot_out = speclist_cat[speclist_cat["id"]==id]["fname"][0]+'.phot.cat'
+    fname_phot_out = ID + '.phot.cat'
     phot_tab = Table.read(f'files/{fname_phot_out}', format='ascii.commented_header')
 
     # jwst filter list
@@ -274,12 +270,10 @@ def guess_calib(ID, z, plot=False, phot_xpos=None, spec_xpos=None):
     coeffs : coefficients of the calibration polynomial, format=numpy array
     """
 
-    id = int(ID)
-
     # filter list 
-    filt_list = updated_filt_list(id) # filt list
+    filt_list = updated_filt_list(ID) # filt list
     eff_wavs = calc_eff_wavs(filt_list=filt_list) # effective wavelengths
-    spec_fluxes, phot_fluxes = load_both(id) # spec and phot fluxes
+    spec_fluxes, phot_fluxes = load_both(ID) # spec and phot fluxes
     syn_phot, syn_phot_err = synthetic_photometry_msa(z=z, filt_list=filt_list, spec_tab=spec_fluxes) # synthetic photometry
 
     y = phot_fluxes[:,0] / syn_phot # ratio of real to synthetic photometry
@@ -334,10 +328,7 @@ def check_spec(ID, valid_threshold=400):
     is_valid : True/False depending on whether spectrum has breaks, format=bool
     """
 
-    id = int(ID)
-
-    speclist_cat = Table.read('spec_cat_temp.csv', format='csv')
-    fname_spec = speclist_cat[speclist_cat["id"]==id]["fname"][0]+'.spec.fits'
+    fname_spec = ID + '.spec.fits'
     file_path='files/'
 
     msaexp_spectrum = msaexp.spectrum.read_spectrum(f"{file_path}{fname_spec}")
@@ -369,15 +360,11 @@ def load_phot(ID):
     photometry : table containing photometric fluxes and flux uncertainties, format=numpy array
     """
 
-    id = int(ID)
-
-    speclist_cat = Table.read('spec_cat_temp.csv', format='csv')
-
-    fname_phot_out = speclist_cat[speclist_cat["id"]==id]["fname"][0]+'.phot.cat'
+    fname_phot_out = ID + '.phot.cat'
     phot_tab = Table.read(f'files/{fname_phot_out}', format='ascii.commented_header')
 
     # jwst filter list
-    filt_list = updated_filt_list(id)
+    filt_list = updated_filt_list(ID)
 
     flux_colNames = [
         os.path.basename(filt_list_i).split('.')[0]+'_tot_1'
@@ -480,11 +467,7 @@ def load_spec(ID):
     binned_spectrum : table containing binned spectral wavelengths, fluxes and flux uncertainties, format=numpy array
     """
 
-    id = int(ID)
-
-    speclist_cat = Table.read('spec_cat_temp.csv', format='csv')
-
-    fname_spec_out = speclist_cat[speclist_cat["id"]==id]["fname"][0]+'.spec.fits'
+    fname_spec_out = ID + '.spec.fits'
     spec_tab = Table.read(f'files/{fname_spec_out}', hdu=1)
 
     spec_wavs = np.array(spec_tab['wave'])*1e4 # convert wavs to angstrom
@@ -529,10 +512,8 @@ def load_both(ID):
     phot : table containing photometric fluxes and flux uncertainties, format=numpy array
     """
 
-    id = int(ID)
-    
-    spectrum = load_spec(id)
-    phot = load_phot(id)
+    spectrum = load_spec(ID)
+    phot = load_phot(ID)
 
     return spectrum, phot
 

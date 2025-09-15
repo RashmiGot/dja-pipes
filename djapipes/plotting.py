@@ -858,8 +858,7 @@ def plot_calib(fit, fname_spec, z_spec, suffix, show=False, save=False, plot_xli
     ax.fill_between(xpos, post[:, 0], post[:, 2], lw=0,
                     color="firebrick", alpha=0.3, zorder=9)
     
-    ID = int(fit.galaxy.ID)
-    _, _, _ = fitting.guess_calib(ID, z_spec, plot=True, phot_xpos=phot_xpos, spec_xpos=xpos)
+    _, _, _ = fitting.guess_calib(fit.galaxy.ID, z_spec, plot=True, phot_xpos=phot_xpos, spec_xpos=xpos)
 
     ymin, ymax = ax.get_ylim()
     if ymax<2:
@@ -982,8 +981,7 @@ def save_posterior_sample_dists(fit, fname_spec, spec_only, suffix, save=False):
         phot_cols = Table.read(f'files/{fname_phot}', format='ascii.commented_header')[phot_colnames]
 
         # number of photometric filters
-        id = int(fit.galaxy.ID)
-        filt_list = fitting.updated_filt_list(id) # list of valid filters
+        filt_list = fitting.updated_filt_list(fit.galaxy.ID) # list of valid filters
         filt_num = len(filt_list)
 
         phot_cols.add_columns([filt_num], indexes=[-1], names=['filt_num'])

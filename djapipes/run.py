@@ -22,7 +22,7 @@ if not os.path.exists("./files"):
     os.mkdir("./files")
 
 # defines bagpipes fit_instructions dictionary 
-def fitting_params(runid, z_spec, sfh="continuity", n_age_bins=10, scale_disp=1.3, dust_type="kriek", 
+def fitting_params(runName, z_spec, sfh="continuity", n_age_bins=10, scale_disp=1.3, dust_type="kriek", 
                    use_msa_resamp=False, fit_agn=False, fit_dla=False, fit_mlpoly=False,
                    spec_only=False):
 
@@ -183,7 +183,7 @@ def fitting_params(runid, z_spec, sfh="continuity", n_age_bins=10, scale_disp=1.
 
     if not spec_only:
         ## ---------- ## calibration curve (2nd order polynomial)
-        cfit, cfit_err, _ = fitting.guess_calib(runid, z=z_spec) # guessing initial calibration coefficients
+        cfit, cfit_err, _ = fitting.guess_calib(runName, z=z_spec) # guessing initial calibration coefficients
 
         calib = {}
         calib["type"] = "polynomial_bayesian"
@@ -273,17 +273,7 @@ def run_pipes_on_dja_spec(file_spec="rubies-egs61-v3_prism-clear_4233_42328.spec
     # ---- PULLING DATA FROM DB ---- #
     ##################################
 
-    # id and dja name of spectrum
-    runid0 = runName.split('_')[-1]
-    runid = re.findall(r'\d+', runid0)[0]
-
-    print(runid, runName)
-    
-    ##############
-    # temp catalog, though not clear why this needs to be a catalog file at all
-    row = [runid, runName]
-    tab = grizli.utils.GTable(names=["id", "fname"], rows=[row])
-    tab.write("spec_cat_temp.csv", overwrite=True)
+    print("Djapipes: initialising fitting for object", runName)
     
     # spectrum and photometry filenames
     fname_spec = runName+'.spec.fits'
@@ -296,7 +286,7 @@ def run_pipes_on_dja_spec(file_spec="rubies-egs61-v3_prism-clear_4233_42328.spec
     database.pull_spec_from_db(fname_spec, filePath)
 
     # checks spectrum for missing flux datapoints
-    num_valid, is_valid = fitting.check_spec(ID=runid, valid_threshold=valid_threshold)
+    num_valid, is_valid = fitting.check_spec(ID=runName, valid_threshold=valid_threshold)
 
     if not is_valid:
         print("Spectrum not valid")
@@ -322,17 +312,17 @@ def run_pipes_on_dja_spec(file_spec="rubies-egs61-v3_prism-clear_4233_42328.spec
     if spec_only:
         filt_list = None
 
-        galaxy = pipes.galaxy(runid, fitting.load_spec, filt_list=filt_list,
+        galaxy = pipes.galaxy(runName, fitting.load_spec, filt_list=filt_list,
                               spectrum_exists=True,
                               photometry_exists=False,
                               spec_units='ergscma',
                               out_units='ergscma')
     elif not spec_only:
         # jwst filter list
-        filt_list = fitting.updated_filt_list(runid)
+        filt_list = fitting.updated_filt_list(runName)
 
         # making galaxy object
-        galaxy = pipes.galaxy(runid, fitting.load_both, filt_list=filt_list,
+        galaxy = pipes.galaxy(runName, fitting.load_both, filt_list=filt_list,
                               spec_units='ergscma',
                               phot_units='ergscma',
                               out_units='ergscma')
@@ -343,7 +333,7 @@ def run_pipes_on_dja_spec(file_spec="rubies-egs61-v3_prism-clear_4233_42328.spec
         galaxy.filter_int_arr, galaxy.filt_norm_arr, galaxy.filt_valid = fitting.calc_filt_int(filt_list, spec_tab, z_spec)
     
     # generating fit instructions
-    fit_instructions = fitting_params(runid, z_spec, sfh=sfh, n_age_bins=n_age_bins, scale_disp=scale_disp,
+    fit_instructions = fitting_params(runName, z_spec, sfh=sfh, n_age_bins=n_age_bins, scale_disp=scale_disp,
                                       dust_type=dust_type,
                                       use_msa_resamp=use_msa_resamp, fit_agn=fit_agn, fit_dla=fit_dla, fit_mlpoly=fit_mlpoly,
                                       spec_only=spec_only)
@@ -374,7 +364,7 @@ def run_pipes_on_dja_spec(file_spec="rubies-egs61-v3_prism-clear_4233_42328.spec
     
     # check if posterior file exists
     full_posterior_file = f'pipes/posterior/{runName}/{runName}_{suffix}.h5'
-    run_posterior_file = f'pipes/posterior/{runName}/{runid}.h5'
+    run_posterior_file = f'pipes/posterior/{runName}/{runName}.h5'
     
     if os.path.isfile(full_posterior_file):
         os.rename(full_posterior_file, run_posterior_file)
@@ -396,9 +386,9 @@ def run_pipes_on_dja_spec(file_spec="rubies-egs61-v3_prism-clear_4233_42328.spec
         _, plotlims_fnu = plotting.plot_fitted_spectrum(fit, fname_spec, z_spec=z_spec, suffix=suffix,
                                                         spec_only=spec_only, f_lam=False, save=True, return_plotlims=True)
         # plot data
-        _ = plotting.plot_spec_phot_data(runid, fname_spec, fname_phot, z_spec=z_spec, suffix=suffix,
+        _ = plotting.plot_spec_phot_data(runName, fname_spec, fname_phot, z_spec=z_spec, suffix=suffix,
                                         spec_only=spec_only, f_lam=True, show=False, save=True, run=runName, plotlims=plotlims_flam)
-        _ = plotting.plot_spec_phot_data(runid, fname_spec, fname_phot, z_spec=z_spec, suffix=suffix,
+        _ = plotting.plot_spec_phot_data(runName, fname_spec, fname_phot, z_spec=z_spec, suffix=suffix,
                                         spec_only=spec_only, f_lam=False, show=False, save=True, run=runName, plotlims=plotlims_fnu)
         # plot star-formation history
         _ = plotting.plot_fitted_sfh(fit, fname_spec, z_spec=z_spec, suffix=suffix, save=True)
