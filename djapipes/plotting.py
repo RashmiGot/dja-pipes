@@ -263,7 +263,7 @@ def plot_spec_phot_data(runid, fname_spec, fname_phot, z_spec, suffix, spec_only
         if not f_lam:
             str_ext = '_fnu'
         imname = fname + '_' + suffix + '_data' + str_ext
-        # plt.savefig(f'{plotPath}/{imname}.pdf', transparent=True)
+        plt.savefig(f'{plotPath}/{imname}.pdf', transparent=True)
         plt.savefig(f'{plotPath}/{imname}.png', transparent=True)
         plt.close(fig)
 
@@ -537,7 +537,7 @@ def plot_fitted_spectrum(fit, fname_spec, z_spec, suffix, spec_only=False, f_lam
         if not f_lam:
             str_ext = '_fnu'
         plotpath = "pipes/plots/" + fit.run + "/" + fname +  '_' + suffix + '_specfit' + str_ext
-        # plt.savefig(plotpath+'.pdf', transparent=True)
+        plt.savefig(plotpath+'.pdf', transparent=True)
         plt.savefig(plotpath+'.png', transparent=True)
         plt.close(fig)
 
@@ -640,7 +640,7 @@ def plot_fitted_sfh(fit, fname_spec, z_spec, suffix, show=False, save=False):
 
     if save:
         plotpath = "pipes/plots/" + fit.run + "/" + fname + '_' + suffix + '_sfh'
-        # plt.savefig(plotpath+'.pdf', transparent=True)
+        plt.savefig(plotpath+'.pdf', transparent=True)
         plt.savefig(plotpath+'.png', transparent=True)
         plt.close(fig)
 
@@ -745,7 +745,7 @@ def plot_corner(fit, fname_spec, z_spec, fit_instructions, filt_list, suffix, co
         if save:
             fname = fname_spec.split('.spec')[0]
             plotpath = "pipes/plots/" + fit.run + "/" + fname + '_' + suffix + '_corner'
-            # plt.savefig(plotpath+'.pdf', transparent=True)
+            plt.savefig(plotpath+'.pdf', transparent=True)
             plt.savefig(plotpath+'.png', transparent=True)
             plt.close(fig1)
 
@@ -798,7 +798,7 @@ def plot_corner(fit, fname_spec, z_spec, fit_instructions, filt_list, suffix, co
         if save:
             fname = fname_spec.split('.spec')[0]
             plotpath = "pipes/plots/" + fit.run + "/" + fname + '_' + suffix + '_sci_corner'
-            # plt.savefig(plotpath+'.pdf', transparent=True)
+            plt.savefig(plotpath+'.pdf', transparent=True)
             plt.savefig(plotpath+'.png', transparent=True)
             plt.close(fig2)
 
@@ -896,7 +896,7 @@ def plot_calib(fit, fname_spec, z_spec, suffix, show=False, save=False, plot_xli
     if save:
         fname = fname_spec.split('.spec')[0]
         plotpath = "pipes/plots/" + fit.run + "/" + fname + '_' + suffix + '_calib'
-        # plt.savefig(plotpath+'.pdf', transparent=True)
+        plt.savefig(plotpath+'.pdf', transparent=True)
         plt.savefig(plotpath+'.png', transparent=True)
         plt.close(fig)
 
@@ -1221,6 +1221,108 @@ def add_lines_msa(z_spec, wavs_for_scaling=None):
                 zorder=-100,
             )
             
+
+# --------------------------------------------------------------
+# ----------------------------------- POSTERIOR BEST MODELS
+# --------------------------------------------------------------
+def save_posterior_seds(fit, fname_spec, suffix=None, save=False):
+    """
+    Saves 50th percentile SED model max-L model and MAP model, projected on original wavelength array
+    
+    Parameters
+    ----------
+    fit : fit object from BAGPIPES (where fit = pipes.fit(galaxy, fit_instructions))
+    fname_spec : filename of spectrum e.g. 'rubies-uds3-v3_prism-clear_4233_62812.spec.fits', format=str
+    suffix : string containing sfh and dust information to be appended to output file name, format=str
+    save : specifies wherether or not to save the table, format=bool
+
+    Returns
+    -------
+    tab : astropy table containing wavelength, flux, and flux_50th percentile, max-L and MAP model columns
+    """
+
+    fit.posterior.get_advanced_quantities()
+
+    # spectrum
+    spec_tab = Table.read(f'files/{fname_spec}', hdu=1)    
+    # tab = Table(spec_tab["wave", "flux", "err"])
+
+    # posterior
+    wavs = fit.galaxy.spectrum[:, 0]/10000
+    spec_post = np.copy(fit.posterior.samples["spectrum"])
+    post = np.percentile(spec_post, (16, 50, 84), axis=0).T
+
+    post_cgs = Table([wavs, post[:,0], post[:,1], post[:,2]], names=["wave_sed", "sed_16_cgs", "sed_50_cgs", "sed_84_cgs"])
+    post_mujy = Table([fitting.convert_cgs2mujy(post_cgs["sed_16_cgs"], wavs*1e4),
+                       fitting.convert_cgs2mujy(post_cgs["sed_50_cgs"], wavs*1e4),
+                       fitting.convert_cgs2mujy(post_cgs["sed_84_cgs"], wavs*1e4)],
+                       names=["sed_16_mujy", "sed_50_mujy", "sed_84_mujy"])
+
+    tab = hstack([post_cgs, post_mujy], join_type='exact')
+
+    if fit.galaxy.msa_line_components is not None:
+        lsqfit_model = np.percentile(fit.galaxy.msa_model, 50, axis=0).T
+        sed_50_flexilines_cgs = tab["sed_50_cgs"] + lsqfit_model
+        sed_50_flexilines_mujy = fitting.convert_cgs2mujy(sed_50_flexilines_cgs, wavs*1e4)
+        tab = hstack([tab, Table([sed_50_flexilines_cgs, sed_50_flexilines_mujy], names=["sed_50_flexilines_cgs", "sed_50_flexilines_mujy"])], join_type='exact')
+
+    # append calibration curves
+    post_calib = Table(np.percentile(fit.posterior.samples["calib"], (16, 50, 84), axis=0).T,
+                       names=["calib_16", "calib_50", "calib_84"])
+    tab = hstack([tab, post_calib], join_type='exact')
+
+    # find overlapping wavelengths
+    spec_mask = np.isin(np.round(spec_tab["wave"], 5), np.round(wavs, 5))
+    # initialise table with nan values
+    tab_full = np.full((len(spec_tab), len(tab.colnames)), np.nan, dtype=float)
+    for col in tab.colnames:
+        tab_full[:, tab.colnames.index(col)][spec_mask] = tab[col]
+    tab_full = Table(tab_full, names=tab.colnames)
+
+    tab_full = hstack([spec_tab["wave", "flux", "err"], tab_full], join_type='exact')
+
+    # append dust curves
+    post_dust = np.percentile(fit.posterior.samples["dust_curve"], (16, 50, 84), axis=0).T
+    zfit = np.percentile(fit.posterior.samples["redshift"], 50) # need redshift to convert from rest to observed frame
+    dust_16 = np.interp(spec_tab["wave"], fit.posterior.model_galaxy.wavelengths / 1e4 * (1 + zfit), post_dust[:,0])
+    dust_50 = np.interp(spec_tab["wave"], fit.posterior.model_galaxy.wavelengths / 1e4 * (1 + zfit), post_dust[:,1])
+    dust_84 = np.interp(spec_tab["wave"], fit.posterior.model_galaxy.wavelengths / 1e4 * (1 + zfit), post_dust[:,2])
+    post_dust_interp = Table([dust_16, dust_50, dust_84], names=["dust_curve_16", "dust_curve_50", "dust_curve_84"])
+    
+    tab_full = hstack([tab_full, post_dust_interp], join_type='exact') 
+
+    ##########################
+    # maximum likelihood model
+    ##########################
+    maxL_index = np.argmax(fit.results["lnlike"])
+
+    fit.fitted_model._update_model_components(fit.results["samples2d"][maxL_index, :])
+
+    maxL_model_components = fit.fitted_model.model_components
+    maxL_model_components_temp = copy.deepcopy(maxL_model_components)
+    if "use_msa_resamp" in maxL_model_components_temp.keys():
+        del maxL_model_components_temp['use_msa_resamp']
+
+    maxL_model_galaxy = pipes.model_galaxy(model_components=maxL_model_components_temp,
+                                            filt_list=fit.galaxy.filt_list,
+                                            spec_wavs=tab_full["wave"]*1e4)
+    
+    maxL_sed_cgs = maxL_model_galaxy.spectrum[:,1]
+    maxL_sed_mujy = fitting.convert_cgs2mujy(maxL_sed_cgs, tab_full["wave"]*1e4)
+
+    tab_full = hstack([tab_full, Table([maxL_sed_cgs,maxL_sed_mujy], names=["sed_maxL_cgs", "sed_maxL_mujy"])], join_type='exact')
+
+    if save:
+        tabpath = "pipes/cats/" + fit.run + "/"
+        if suffix is None:
+            outname = fname_spec.replace('.spec.fits', '_postmodels.csv')
+        else:
+            outname = fname_spec.replace('.spec.fits', f'_{suffix}_postmodels.csv')
+        tab_full.write(tabpath + outname, format='csv', overwrite=True)
+        print(tabpath + outname)
+
+    return tab_full
+
 
 
 # --------------------------------------------------------------

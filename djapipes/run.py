@@ -230,7 +230,7 @@ def run_pipes_on_dja_spec(file_spec="rubies-egs61-v3_prism-clear_4233_42328.spec
                           extended_prism_wavs=False,
                           use_msa_resamp=False, fit_agn=False, fit_dla=False, fit_mlpoly=False,
                           pool=4,
-                          make_plots=True, save_tabs=True,
+                          make_plots=True, save_tabs=True, save_models=True,
                           suffix=None,
                           **kwargs):
     """
@@ -410,6 +410,9 @@ def run_pipes_on_dja_spec(file_spec="rubies-egs61-v3_prism-clear_4233_42328.spec
         if msa_line_components is not None:
             _ = plotting.save_posterior_msa_lsq_line_fluxes(fit, fname_spec, suffix=suffix, save=True)
 
+    if save_models:
+        _ = plotting.save_posterior_seds(fit, fname_spec, suffix=suffix, save=True)
+    
     # rename posterior
     os.rename(run_posterior_file, full_posterior_file)
 
