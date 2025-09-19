@@ -1,6 +1,7 @@
 file_phot
 abell2744clu-grizli-v7.2-fix_phot.fits
 abell2744par-grizli-v7.0-fix_phot.fits
+abell370-full-grizli-v7.6-fix_phot.fits
 abell370-full-grizli-v7.1-fix_phot.fits
 abells1063-grizli-v7.5-fix_phot.fits
 abells1063-grizli-v7.0-fix_phot.fits
@@ -16,10 +17,14 @@ gds-grizli-v7.2-fix_phot.fits
 gds-sw-grizli-v7.0-fix_phot.fits
 ngdeep-grizli-v7.2-fix_phot.fits
 j112716p4228-grizli-v7.0-fix_phot.fits
+macs0416-full-grizli-v7.6-fix_phot.fits
 macs0416-clu-grizli-v7.0-fix_phot.fits
+macs0417-full-grizli-v7.6-fix_phot.fits
 macs0417-full-grizli-v7.2-fix_phot.fits
 macs0647-grizli-v7.0-fix_phot.fits
+macs1149-full-grizli-v7.6-fix_phot.fits
 macs1149-clu-grizli-v7.0-fix_phot.fits
+macs1423-full-grizli-v7.6-fix_phot.fits
 macs1423-full-grizli-v7.2-fix_phot.fits
 mrg0138-grizli-v7.2-fix_phot.fits
 primer-cosmos-east-grizli-v7.4-fix_phot.fits
