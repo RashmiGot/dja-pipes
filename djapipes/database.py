@@ -1,6 +1,8 @@
 # ------- LIBRARIES ------ #
 import wget
 import os
+import urllib.request
+import urllib.error
 
 from astropy.table import Table
 
@@ -25,17 +27,27 @@ def pull_spec_from_db(fname_spec, file_path='files/'):
     """
 
     url_path_dja = 'https://s3.amazonaws.com/msaexp-nirspec/extractions'
+    url_path_canucs = 'https://s3.amazonaws.com/grizli-canucs/nirspec'
     root_i = fname_spec.split('_')[0]
     file_i = fname_spec
+
+    urls_to_try = [
+        f"{url_path_dja}/{root_i}/{file_i}",
+        f"{url_path_canucs}/{root_i}/{file_i}"
+    ]
 
     # checks if file exists; if yes, deletes existing file
     if os.path.exists(file_path+fname_spec):
         os.remove(file_path+fname_spec)
-    # downloads spectrum from aws database
-    wget.download(url=url_path_dja+'/'+root_i+'/'+file_i, out=file_path+fname_spec)
 
-
-
+    for i, url in enumerate(urls_to_try):
+        try:
+            # downloads spectrum from aws database
+            wget.download(url=url, out=file_path+fname_spec)
+            print(f"\nSuccessfully downloaded {fname_spec} from DJA")
+            return None
+        except Exception as e:
+            print(f"Error downloading {url}: {e}")
 
 # --------------------------------------------------------------
 # -------------------------------- PULL PHOTOMETRY FROM DATABASE
