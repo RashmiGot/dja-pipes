@@ -483,6 +483,10 @@ def load_spec(ID):
     flux_cgs = convert_mujy2cgs(flux_muJy,spec_wavs)
     fluxerr_cgs = convert_mujy2cgs(fluxerr_muJy,spec_wavs)
 
+    # fill in missing values
+    flux_cgs[spec_tab['flux'].mask] = np.nanmean(flux_cgs)
+    fluxerr_cgs[spec_tab['err'].mask] = np.nanmean(flux_cgs)*1e3
+
     # constructing spectrum table
     spectrum = np.c_[spec_wavs[spec_wavs_mask],
                      flux_cgs[spec_wavs_mask],
