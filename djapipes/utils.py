@@ -59,4 +59,35 @@ def load_prism_dispersion(scale_disp=1.3):
     
     return resData
 
-    
+
+def load_calib_curve(file_spec, suffix, sfh="continuity", dust="salim"):
+    """
+    Load calibration curve from posterior catalogue
+    """
+
+    runName = file_spec.split('.spec.fits')[0]
+
+    # posterior models and output catalogue
+    postmodels = Table.read(f"pipes/cats/{runName}/{runName}_{sfh}_{dust}_{suffix}_postmodels.csv", format="csv")
+    postcat = Table.read(f"pipes/cats/{runName}/{runName}_{sfh}_{dust}_{suffix}_postcat.csv", format="csv")
+
+    # extract wavelength grid and calibration coefficients
+    wave = postmodels["wave_sed"]
+    wave_min, wave_max = np.nanmin(wave), np.nanmax(wave)
+    c_coeffs = np.array([postcat["calib_0_50"][0], postcat["calib_1_50"][0], postcat["calib_2_50"][0]])
+
+    # reconstruct calibration curve
+    calib_curve = generate_calib_curve(c_coeffs, wave, wave_min, wave_max)
+
+    return(wave, calib_curve)
+
+
+def generate_calib_curve(coeffs, x_arr, x_min, x_max):
+    """
+    Generate calibration curve from Chebyshev coefficients
+    """
+
+    x_trans = 2 * (x_arr - x_min) / (x_max - x_min) - 1
+    calib_curve = np.polynomial.chebyshev.chebval(x_trans, coeffs)
+
+    return calib_curve
