@@ -122,20 +122,10 @@ def generate_calzetti_curve(wave):
 
     return A_lambda
 
-def generate_salim_dust_curve(file_spec, suffix, sfh="continuity", dust="salim"):
+def generate_salim_dust_curve(delta, B):
     """
-    generate dust curve from posterior catalogue
+    generate dust curve from delta, B parameters in posterior catalogue
     """
-
-    runName = file_spec.split('.spec.fits')[0]
-
-    # posterior models and output catalogue
-    postcat = Table.read(f"pipes/cats/{runName}/{runName}_{sfh}_{dust}_{suffix}_postcat.csv", format="csv")
-
-    # read dust model parameters
-    redshift = postcat["redshift_50"][0]
-    delta = postcat["dust_delta_50"][0]
-    B = postcat["dust_B_50"][0]
 
     wave = np.linspace(1, 1e5, int(1e5))  # example wavelength range in angstroms
 
@@ -148,9 +138,27 @@ def generate_salim_dust_curve(file_spec, suffix, sfh="continuity", dust="salim")
 
     D_lambda = B*wave**2*350.**2
     D_lambda /= (wave**2 - 2175**2)**2 + wave**2*350.**2
-    
+
     A_cont = A_lambda_calz * Rv_m * (wave/5500.)**delta
     A_tot = A_cont + D_lambda
     A_tot /= Rv_m  # normalize by modified Rv
+
+    return(wave, A_tot)
+
+def load_salim_dust_curve(file_spec, suffix, sfh="continuity", dust="salim"):
+    """
+    load dust curve from posterior catalogue
+    """
+
+    runName = file_spec.split('.spec.fits')[0]
+
+    # posterior models and output catalogue
+    postcat = Table.read(f"pipes/cats/{runName}/{runName}_{sfh}_{dust}_{suffix}_postcat.csv", format="csv")
+
+    # read dust model parameters
+    delta = postcat["dust_delta_50"][0]
+    B = postcat["dust_B_50"][0]
+
+    wave, A_tot = generate_salim_dust_curve(delta, B)
 
     return(wave, A_tot)
