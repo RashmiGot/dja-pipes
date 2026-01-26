@@ -3,6 +3,8 @@ import numpy as np
 from astropy.table import Table
 import astropy.io.fits as pyfits
 
+from . import run
+
 def preferred_catalogs():
     """
     Get ordered list of preferred photometric catalogs
@@ -162,3 +164,46 @@ def load_salim_dust_curve(file_spec, suffix, sfh="continuity", dust="salim"):
     wave, A_tot = generate_salim_dust_curve(delta, B)
 
     return(wave, A_tot)
+
+def continuity(bin_edges, dsfrs, massformed):
+    """
+    Reconstruct continuity SFH from age bin edges and dsfrs
+    """
+
+    n_bins = len(bin_edges) - 1
+
+    ages = np.linspace(bin_edges[0], bin_edges[-1], 10000)
+    sfr = np.zeros(len(ages))
+
+    for i in range(1, n_bins+1):
+
+        mask = (ages < bin_edges[i-1]) & (ages > bin_edges[i])
+        sfr[mask] += 10**np.sum(dsfrs[:i-1])
+
+    massnorm = np.sum(sfr[:-1]*np.abs(np.diff(ages)))
+    sfr *= massformed/massnorm
+
+    return(ages, sfr)
+
+def load_continuity_sfh(file_spec, suffix, sfh="continuity", dust="salim"):
+    """
+    Load continuity SFH from posterior catalogue
+    """
+
+    runName = file_spec.split('.spec.fits')[0]
+
+    # posterior models and output catalogue
+    postcat = Table.read(f"pipes/cats/{runName}/{runName}_{sfh}_{dust}_{suffix}_postcat.csv", format="csv")
+
+    z_spec = postcat["redshift_50"][0]
+
+    bin_edges = run.get_age_bins(z_spec)[::-1]*10**6
+
+    dsfr_colnames = [s for s in postcat.colnames if s.startswith("continuity_dsfr") and s.endswith("_50")]
+    dsfrs = np.array([postcat[dsfr_col][0] for dsfr_col in dsfr_colnames])
+
+    massformed = 10**postcat["continuity_massformed_50"][0]
+
+    ages, sfr = continuity(bin_edges, dsfrs, massformed)
+
+    return(ages, sfr)
