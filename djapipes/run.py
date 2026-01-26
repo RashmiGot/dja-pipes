@@ -21,6 +21,31 @@ from . import utils as djautils
 if not os.path.exists("./files"):
     os.mkdir("./files")
 
+# defines age bins for continuity sfh
+def get_age_bins(z, n_age_bins=10):
+
+    # sets max age to age of universe relative to age at z=30 (which is ~100 Myr after BB)
+    max_age = cosmo.age(0).to('Myr').value - cosmo.age(30).to('Myr').value
+    age_at_z = cosmo.age(z).to('Myr').value - cosmo.age(30).to('Myr').value
+
+    age_bins = [0., 3., 10., 25., 50.] # sets initial two age bin edges
+    for i in np.logspace(np.log10(100), np.log10(max_age), n_age_bins):
+        age_bins.append(i)
+    age_bins=np.array(age_bins)
+
+    # indeces of any age bin edges that are greater than max_age at z_obs
+    last_index = np.where(age_bins > age_at_z)[0][0]
+
+    # conditionally extends last age bin edge to age_at_z
+    if (np.log10(age_at_z)-np.log10(age_bins[last_index-1]))<0.5*(np.log10(age_bins[last_index])-np.log10(age_bins[last_index-1])):
+        age_bins[last_index-1] = age_at_z
+        final_age_bins = age_bins[:last_index]
+    elif (np.log10(age_at_z)-np.log10(age_bins[last_index-1]))>=0.5*(np.log10(age_bins[last_index])-np.log10(age_bins[last_index-1])):
+        age_bins[last_index] = age_at_z
+        final_age_bins = age_bins[:(last_index+1)]
+
+    return final_age_bins
+
 # defines bagpipes fit_instructions dictionary 
 def fitting_params(runName, z_spec, sfh="continuity", n_age_bins=10, scale_disp=1.3, dust_type="kriek", 
                    use_msa_resamp=False, fit_agn=False, fit_dla=False, fit_mlpoly=False,
@@ -48,31 +73,7 @@ def fitting_params(runName, z_spec, sfh="continuity", n_age_bins=10, scale_disp=
     delayed["metallicity"] = (0.2, 1.)   # in Zsun
 
     
-    # ## ---------- ## continuity sfh (non-parametric)
-    def get_age_bins(z, n_age_bins=10):
-
-        # sets max age to age of universe relative to age at z=30 (which is ~100 Myr after BB)
-        max_age = cosmo.age(0).to('Myr').value - cosmo.age(30).to('Myr').value
-        age_at_z = cosmo.age(z).to('Myr').value - cosmo.age(30).to('Myr').value
-
-        age_bins = [0., 3., 10., 25., 50.] # sets initial two age bin edges
-        for i in np.logspace(np.log10(100), np.log10(max_age), n_age_bins):
-            age_bins.append(i)
-        age_bins=np.array(age_bins)
-
-        # indeces of any age bin edges that are greater than max_age at z_obs
-        last_index = np.where(age_bins > age_at_z)[0][0]
-
-        # conditionally extends last age bin edge to age_at_z
-        if (np.log10(age_at_z)-np.log10(age_bins[last_index-1]))<0.5*(np.log10(age_bins[last_index])-np.log10(age_bins[last_index-1])):
-            age_bins[last_index-1] = age_at_z
-            final_age_bins = age_bins[:last_index]
-        elif (np.log10(age_at_z)-np.log10(age_bins[last_index-1]))>=0.5*(np.log10(age_bins[last_index])-np.log10(age_bins[last_index-1])):
-            age_bins[last_index] = age_at_z
-            final_age_bins = age_bins[:(last_index+1)]
-
-        return final_age_bins
-    
+    # ## ---------- ## continuity sfh (non-parametric)    
     continuity = {}
     continuity["massformed"] = (6., 14.)
     continuity["massformed_prior"] = "uniform"
