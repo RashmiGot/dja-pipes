@@ -61,6 +61,36 @@ def load_prism_dispersion(scale_disp=1.3):
     
     return resData
 
+def get_magnitude_from_nJy(flux):
+    """
+    Calculates AB magnitude from flux;
+    Input parameters: flux (float) in nanoJy
+    """
+    
+    mag = -2.5 * np.log10(flux) + 31.4# - 7.5
+    
+    return(mag)
+
+def get_magnitude_from_muJy(flux):
+    """
+    Calculates AB magnitude from flux;
+    Input parameters: flux (float) in muJy
+    """
+    
+    mag = -2.5 * np.log10(flux) + 23.9
+    
+    return(mag)
+
+def get_colours(flux1, flux2):
+    """
+    Calculates photometric colour from fluxes;
+    Input parameters: flux1, flux2 (float) in same units
+    """
+    
+    colour = -2.5*np.log10(flux1/flux2)
+    
+    return(colour)
+
 
 def load_calib_curve(file_spec, suffix, sfh="continuity", dust="salim"):
     """
