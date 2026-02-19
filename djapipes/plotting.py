@@ -1359,7 +1359,7 @@ def calc_sf_timescales(fit, z_spec, timescales=[10,20,50,80,90], return_full=Fal
     for i in range(len(sfh_post)):
         sfh_interp = np.interp(ages_interp, ages, sfh_post[i])
 
-        Mstar_sum = np.cumsum(sfh_interp*ages_interp*1e9) # stellar mass as func. of lookback time
+        Mstar_sum = np.cumsum(sfh_interp[::-1]*ages_interp[::-1]*1e9)[::-1] # stellar mass as func. of lookback time
         Mstar_totformed = np.sum(sfh_interp*ages_interp*1e9) # total formed mass
         Mstar_percs = 0.01*np.array(timescales)*Mstar_totformed
         indices = [np.abs(Mstar_sum - M).argmin() for M in Mstar_percs]
