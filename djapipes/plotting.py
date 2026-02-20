@@ -1524,3 +1524,42 @@ def calc_sfrX(fit, sfr_timescale=100):
     sfrX_perc = np.percentile(sfrX, (16,50,84))
 
     return(sfrX_perc)
+
+
+# --------------------------------------------------------------
+# ------------------------------------------- FULL POSTERIOR SED
+# --------------------------------------------------------------
+def save_full_posterior_sed(fit, fname_spec, suffix=None, save=False):
+
+    """
+    Saves full Bagpipes posterior SED model
+    
+    Parameters
+    ----------
+    fit : fit object from BAGPIPES (where fit = pipes.fit(galaxy, fit_instructions))
+    fname_spec : filename of spectrum e.g. 'rubies-uds3-v3_prism-clear_4233_62812.spec.fits', format=str
+    suffix : string containing sfh and dust information to be appended to output file name, format=str
+    save : specifies wherether or not to save the table, format=bool
+
+    Returns
+    -------
+    tab : astropy table containing wavelength and 16th, 50th and 84th percentile values of the full posterior SED, format=astropy.table.Table
+    """
+
+    fit.posterior.get_advanced_quantities()
+
+    wave_full = fit.posterior.model_galaxy.wavelengths
+
+    post = np.percentile(fit.posterior.samples["spectrum_full"], (16,50, 84), axis=0).T
+    posttab = Table([wave_full, post[:,0], post[:,1], post[:,2]], names=["wave_full", "sed_full_16_cgs", "sed_full_50_cgs", "sed_full_84_cgs"])
+
+    if save:
+        tabpath = "pipes/cats/" + fit.run + "/"
+        if suffix is None:
+            outname = fname_spec.replace('.spec.fits', '_postsed_full.csv')
+        else:
+            outname = fname_spec.replace('.spec.fits', f'_{suffix}_postsed_full.csv')
+        posttab.write(tabpath + outname, format='csv', overwrite=True)
+        print(tabpath + outname)
+
+    return posttab
