@@ -405,7 +405,6 @@ def run_pipes_on_dja_spec(file_spec="rubies-egs61-v3_prism-clear_4233_42328.spec
         # save posterior quantities to table
         _ = plotting.save_posterior_sample_dists(fit, fname_spec, spec_only, suffix=suffix, save=True)
         _ = plotting.save_posterior_line_fluxes(fit, fname_spec, suffix=suffix, save=True)
-        _ = plotting.save_full_posterior_sed(fit, fname_spec, suffix=suffix, save=True)
         if not spec_only:
             # save calib curve to table
             _ = plotting.save_calib(fit, fname_spec, suffix=suffix, save=True)
@@ -414,6 +413,7 @@ def run_pipes_on_dja_spec(file_spec="rubies-egs61-v3_prism-clear_4233_42328.spec
 
     if save_models:
         _ = plotting.save_posterior_seds(fit, fname_spec, suffix=suffix, save=True)
+        _ = plotting.save_full_posterior_sed(fit, fname_spec, suffix=suffix, save=True)
     
     # rename posterior
     os.rename(run_posterior_file, full_posterior_file)
