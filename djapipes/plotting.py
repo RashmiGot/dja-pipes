@@ -957,11 +957,16 @@ def save_posterior_sample_dists(fit, fname_spec, spec_only, suffix, save=False):
     # making an astropy Table
     post_tab_temp = Table(np.array(tab_row_vals), names=tab_colnames)
 
-    # add SFR on 10 Myr timescale
-    sfr_timescale=10
-    post_sfr10 = calc_sfrX(fit, sfr_timescale=sfr_timescale)
-    colname_sfr10 = [f"sfr_{sfr_timescale}m" + post_ext_i for post_ext_i in post_ext]
-    post_sfr10_tab = Table(post_sfr10.flatten(), names=colname_sfr10)
+    # add SFR on following timescales
+    sfr_timescales = [1, 3, 5, 10, 20, 50, 100]
+    sfr_tables = []
+
+    for sfr_timescale in sfr_timescales:
+        post_sfrX = calc_sfrX(fit, sfr_timescale=sfr_timescale)
+        colname_sfrX = [f"sfr_{sfr_timescale}myr" + post_ext_i for post_ext_i in post_ext]
+        sfr_tables.append(Table(post_sfrX.flatten(), names=colname_sfrX))
+
+    post_sfr_tab = hstack(sfr_tables)
 
     ### add UVJ to post  tab ###
     post_uvj = np.percentile(fit.posterior.samples["uvj"], (16, 50, 84), axis=0).T
@@ -970,7 +975,7 @@ def save_posterior_sample_dists(fit, fname_spec, spec_only, suffix, save=False):
     post_tab_add = Table(post_uvj.flatten(), names=to_add_full)
 
     # hstack tables
-    post_tab = hstack([post_tab_temp,post_sfr10_tab,post_tab_add])
+    post_tab = hstack([post_tab_temp, post_sfr_tab, post_tab_add])
 
     fname = fname_spec.split('.spec')[0]
     
@@ -999,14 +1004,13 @@ def save_posterior_sample_dists(fit, fname_spec, spec_only, suffix, save=False):
     break_values = calc_BB_and_D4000(fname_spec, z_spec)
     break_tab = Table(data=np.array(break_values), names=["bb", "bb_err", "d4000", "d4000_err"])
 
-    # tabulating modelled line fluxes from BAGPIPES posterior
-    # linefluxes_tab = tabulate_modelled_line_fluxes(fit)
+    uv_tab = calc_uv_props(fit, z_spec)
 
     ### saving posterior to csv table ###
     if not spec_only:
-        tab_stacked = hstack([phot_cols, post_tab, timescales_tab, break_tab])
+        tab_stacked = hstack([phot_cols, post_tab, timescales_tab, break_tab, uv_tab])
     elif spec_only:
-        tab_stacked = hstack([post_tab, timescales_tab, break_tab])
+        tab_stacked = hstack([post_tab, timescales_tab, break_tab, uv_tab])
 
     # save runtime in table
     if "runtime" in fit.results.keys():
@@ -1563,3 +1567,48 @@ def save_full_posterior_sed(fit, fname_spec, suffix=None, save=False):
         print(tabpath + outname)
 
     return posttab
+
+
+
+# --------------------------------------------------------------
+# --------------------------------------- TABULATE UV PROPERTIES
+# --------------------------------------------------------------
+# adapted from E. Giovinazzo, P. Oesch
+def calc_uv_props(fit, redshift):
+    """
+    Compute UV slope distribution from posterior SEDs
+    """
+
+    lam = fit.posterior.model_galaxy.wavelengths
+    # define UV windows for beta calculation
+    bidx = ((lam >= 1268) & (lam <= 1284)) | ((lam >= 2400) & (lam <= 2580)) | ((lam >= 1309) & (lam <= 1316)) | ((lam >= 1342) & (lam <= 1371)) | \
+        ((lam >= 1407) & (lam <= 1515)) | ((lam >= 1562) & (lam <= 1583)) | ((lam >= 1677) & (lam <= 1740)) | ((lam >= 1760) & (lam <= 1833)) | \
+        ((lam >= 1866) & (lam <= 1890)) | ((lam >= 1930) & (lam <= 1950))
+
+    n_samples = fit.posterior.samples["spectrum_full"].shape[0]
+    betas    = -99 * np.ones(n_samples)
+    Luvs     = -99 * np.ones(n_samples)
+    Lnus     = -99 * np.ones(n_samples)
+    abs_muvs = -99 * np.ones(n_samples)
+
+    d_cm    = cosmo.luminosity_distance(redshift).to(u.cm).value
+    distmod = cosmo.distmod(redshift).value
+
+    for fii in range(n_samples):
+        flam = fit.posterior.samples["spectrum_full"][fii, :]
+        p = np.polyfit(np.log(lam[bidx]), np.log(flam[bidx]), 1) # computes the slope of the UV continuum, lsq fit to a power law in the UV windows defined by bidx
+        betas[fii] = p[0]
+
+        fnu = flam / (10**-29 * 2.9979e18 / (lam * (1. + redshift))**2)
+        mean_f1500 = np.mean(fnu[bidx]) * 1e-6  # Jy
+        Lnu1500 = mean_f1500 * 1e-23 * 4 * np.pi * d_cm**2 / (1 + redshift)
+        Luvs[fii] = Lnu1500 * 299792458 / 1500e-10
+        Lnus[fii] = Lnu1500
+        apparent_muv = 8.9 - 2.5 * np.log10(mean_f1500)
+        abs_muvs[fii] = apparent_muv - distmod + 2.5 * np.log10(1 + redshift)
+
+    percs = [16, 50, 84]
+    quantities = {"beta": betas, "Luv": Luvs, "Lnu": Lnus, "abs_muv": abs_muvs}
+    row = {f"{name}_p{p}": [np.percentile(arr, p)] for name, arr in quantities.items() for p in percs}
+
+    return Table(row)
