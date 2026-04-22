@@ -1569,6 +1569,46 @@ def save_full_posterior_sed(fit, fname_spec, suffix=None, save=False):
     return posttab
 
 
+# --------------------------------------------------------------
+# ------------------------------------------- FULL POSTERIOR SED
+# --------------------------------------------------------------
+def save_posterior_sfh(fit, fname_spec, suffix=None, save=False):
+
+    """
+    Saves full Bagpipes posterior SFH fit
+    
+    Parameters
+    ----------
+    fit : fit object from BAGPIPES (where fit = pipes.fit(galaxy, fit_instructions))
+    fname_spec : filename of spectrum e.g. 'rubies-uds3-v3_prism-clear_4233_62812.spec.fits', format=str
+    suffix : string containing sfh and dust information to be appended to output file name, format=str
+    save : specifies wherether or not to save the table, format=bool
+
+    Returns
+    -------
+    tab : astropy table containing lookback time (years) and 16th, 50th and 84th percentile values of the full posterior SFH (Msun / year), format=astropy.table.Table
+    """
+
+    fit.posterior.get_advanced_quantities()
+
+    # in years
+    ages = fit.posterior.sfh.ages
+    # Calculate median and confidence interval for SFH posterior
+    post = np.percentile(fit.posterior.samples["sfh"], (16, 50, 84), axis=0).T
+
+    sfhtab = Table([ages, post[:,0], post[:,1], post[:,2]], names=["ages", "sfh_16", "sfh_50", "sfh_84"])
+
+    if save:
+        tabpath = "pipes/cats/" + fit.run + "/"
+        if suffix is None:
+            outname = fname_spec.replace('.spec.fits', '_postsfh.csv')
+        else:
+            outname = fname_spec.replace('.spec.fits', f'_{suffix}_postsfh.csv')
+        sfhtab.write(tabpath + outname, format='csv', overwrite=True)
+        print(tabpath + outname)
+
+    return sfhtab
+
 
 # --------------------------------------------------------------
 # --------------------------------------- TABULATE UV PROPERTIES
