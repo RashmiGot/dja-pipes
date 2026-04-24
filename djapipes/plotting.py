@@ -1229,14 +1229,15 @@ def add_lines_msa(z_spec, wavs_for_scaling=None):
 # --------------------------------------------------------------
 # ----------------------------------- POSTERIOR BEST MODELS
 # --------------------------------------------------------------
-def save_posterior_seds(fit, fname_spec, suffix=None, save=False):
+def save_posterior_seds(fit, fname_spec, spec_only=False, suffix=None, save=False):
     """
-    Saves 50th percentile SED model max-L model and MAP model, projected on original wavelength array
+    Saves 50th percentile SED model max-L model, projected on original wavelength array
     
     Parameters
     ----------
     fit : fit object from BAGPIPES (where fit = pipes.fit(galaxy, fit_instructions))
     fname_spec : filename of spectrum e.g. 'rubies-uds3-v3_prism-clear_4233_62812.spec.fits', format=str
+    spec_only : boolean indicating whether photometry was used in fitting, format=bool
     suffix : string containing sfh and dust information to be appended to output file name, format=str
     save : specifies wherether or not to save the table, format=bool
 
@@ -1265,15 +1266,35 @@ def save_posterior_seds(fit, fname_spec, suffix=None, save=False):
     tab = hstack([post_cgs, post_mujy], join_type='exact')
 
     if fit.galaxy.msa_line_components is not None:
-        lsqfit_model = np.percentile(fit.galaxy.msa_model, 50, axis=0).T
-        sed_50_flexilines_cgs = tab["sed_50_cgs"] + lsqfit_model
-        sed_50_flexilines_mujy = fitting.convert_cgs2mujy(sed_50_flexilines_cgs, wavs*1e4)
-        tab = hstack([tab, Table([sed_50_flexilines_cgs, sed_50_flexilines_mujy], names=["sed_50_flexilines_cgs", "sed_50_flexilines_mujy"])], join_type='exact')
+        lsqfit_model_cgs = Table(np.percentile(fit.galaxy.msa_model, (16, 50, 84), axis=0).T, names=["lsq_fit_16_cgs", "lsq_fit_50_cgs", "lsq_fit_84_cgs"])
+        lsqfit_model_mujy = Table([fitting.convert_cgs2mujy(lsqfit_model_cgs["lsq_fit_16_cgs"], wavs*1e4),
+                                  fitting.convert_cgs2mujy(lsqfit_model_cgs["lsq_fit_50_cgs"], wavs*1e4),
+                                  fitting.convert_cgs2mujy(lsqfit_model_cgs["lsq_fit_84_cgs"], wavs*1e4)],
+                                  names=["lsq_fit_16_mujy", "lsq_fit_50_mujy", "lsq_fit_84_mujy"])
+        
+        sed_flexilines_cgs = Table(np.percentile(fit.posterior.samples["spectrum"]+fit.galaxy.msa_model,  (16, 50, 84), axis=0).T,
+                                   names=["sed_flexilines_16_cgs", "sed_flexilines_50_cgs", "sed_flexilines_84_cgs"])
+        sed_flexilines_mujy = Table([fitting.convert_cgs2mujy(sed_flexilines_cgs["sed_flexilines_16_cgs"], wavs*1e4),
+                                     fitting.convert_cgs2mujy(sed_flexilines_cgs["sed_flexilines_50_cgs"], wavs*1e4),
+                                     fitting.convert_cgs2mujy(sed_flexilines_cgs["sed_flexilines_84_cgs"], wavs*1e4)],
+                                     names=["sed_flexilines_16_mujy", "sed_flexilines_50_mujy", "sed_flexilines_84_mujy"])
+
+        # sed_50_flexilines_cgs = tab["sed_50_cgs"] + lsqfit_model_cgs["lsq_fit_50_cgs"]
+        # sed_50_flexilines_mujy = fitting.convert_cgs2mujy(sed_50_flexilines_cgs, wavs*1e4)
+
+        tab = hstack([tab,
+                      sed_flexilines_cgs,
+                      sed_flexilines_mujy,
+                      lsqfit_model_cgs,
+                      lsqfit_model_mujy
+                      ],
+                     join_type='exact')
 
     # append calibration curves
-    post_calib = Table(np.percentile(fit.posterior.samples["calib"], (16, 50, 84), axis=0).T,
-                       names=["calib_16", "calib_50", "calib_84"])
-    tab = hstack([tab, post_calib], join_type='exact')
+    if not spec_only:
+        post_calib = Table(np.percentile(fit.posterior.samples["calib"], (16, 50, 84), axis=0).T,
+                        names=["calib_16", "calib_50", "calib_84"])
+        tab = hstack([tab, post_calib], join_type='exact')
 
     # find overlapping wavelengths
     spec_mask = np.isin(np.round(spec_tab["wave"], 5), np.round(wavs, 5))
@@ -1309,12 +1330,40 @@ def save_posterior_seds(fit, fname_spec, suffix=None, save=False):
 
     maxL_model_galaxy = pipes.model_galaxy(model_components=maxL_model_components_temp,
                                             filt_list=fit.galaxy.filt_list,
-                                            spec_wavs=tab_full["wave"]*1e4)
+                                            spec_wavs=fit.galaxy.spectrum[:,0])
     
     maxL_sed_cgs = maxL_model_galaxy.spectrum[:,1]
-    maxL_sed_mujy = fitting.convert_cgs2mujy(maxL_sed_cgs, tab_full["wave"]*1e4)
+    maxL_sed_mujy = fitting.convert_cgs2mujy(maxL_sed_cgs, fit.galaxy.spectrum[:,0])
 
-    tab_full = hstack([tab_full, Table([maxL_sed_cgs,maxL_sed_mujy], names=["sed_maxL_cgs", "sed_maxL_mujy"])], join_type='exact')
+    if spec_only:
+        tab_maxL = Table([maxL_sed_cgs, maxL_sed_mujy], names=["sed_maxL_cgs", "sed_maxL_mujy"])
+    elif not spec_only:
+        calib_maxL = djautils.generate_calib_curve([maxL_model_components["calib"]["0"], maxL_model_components["calib"]["1"], maxL_model_components["calib"]["2"]],
+                                        fit.galaxy.spectrum[:,0],
+                                        np.nanmin(fit.galaxy.spectrum[:,0]),
+                                        np.nanmax(fit.galaxy.spectrum[:,0]))
+        
+        tab_maxL = Table([maxL_sed_cgs, maxL_sed_mujy, calib_maxL], names=["sed_maxL_cgs", "sed_maxL_mujy", "calib_maxL"])
+
+    if fit.galaxy.msa_line_components is not None:
+        lsqfit_maxL_cgs, lsqfit_maxL_fluxes = pipes.fitting.flexilines.msa_line_model(fit.posterior.fitted_model,
+                                                                                    maxL_sed_cgs/calib_maxL,
+                                                                                    noise=None)
+        lsqfit_maxL_mujy = fitting.convert_cgs2mujy(lsqfit_maxL_cgs, fit.galaxy.spectrum[:,0])
+        maxL_flexilines_sed_cgs = maxL_sed_cgs + lsqfit_maxL_cgs
+        maxL_flexilines_sed_mujy = fitting.convert_cgs2mujy(maxL_flexilines_sed_cgs, fit.galaxy.spectrum[:,0])
+
+        tab_maxL = hstack([tab_maxL,
+                          Table([maxL_flexilines_sed_cgs, maxL_flexilines_sed_mujy, lsqfit_maxL_cgs, lsqfit_maxL_mujy],
+                                names=["sed_flexilines_maxL_cgs", "sed_flexilines_maxL_mujy", "lsq_fit_maxL_cgs", "lsq_fit_maxL_mujy"])],
+                         join_type='exact')
+
+    tab_full_maxL = np.full((len(spec_tab), len(tab_maxL.colnames)), np.nan, dtype=float)
+    for col in tab_maxL.colnames:
+        tab_full_maxL[:, tab_maxL.colnames.index(col)][spec_mask] = tab_maxL[col]
+    tab_full_maxL = Table(tab_full_maxL, names=tab_maxL.colnames)
+
+    tab_full = hstack([tab_full, tab_full_maxL], join_type='exact')
 
     if save:
         tabpath = "pipes/cats/" + fit.run + "/"

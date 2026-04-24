@@ -318,6 +318,9 @@ def run_pipes_on_dja_spec(file_spec="rubies-egs61-v3_prism-clear_4233_42328.spec
                               photometry_exists=False,
                               spec_units='ergscma',
                               out_units='ergscma')
+
+        galaxy.filter_int_arr, galaxy.filt_norm_arr, galaxy.filt_valid = None, None, None
+
     elif not spec_only:
         # jwst filter list
         filt_list = fitting.updated_filt_list(runName)
@@ -350,7 +353,8 @@ def run_pipes_on_dja_spec(file_spec="rubies-egs61-v3_prism-clear_4233_42328.spec
     if msa_line_components is not None:
         # add msa line components to galaxy object
         galaxy.msa_model = []
-        galaxy.msa_phot = []
+        if not spec_only:
+            galaxy.msa_phot = []
         # add component to store least-squares coeffs. from msaexp fit
         galaxy.lsq_coeffs = []
 
@@ -412,7 +416,7 @@ def run_pipes_on_dja_spec(file_spec="rubies-egs61-v3_prism-clear_4233_42328.spec
             _ = plotting.save_posterior_msa_lsq_line_fluxes(fit, fname_spec, suffix=suffix, save=True)
 
     if save_models:
-        _ = plotting.save_posterior_seds(fit, fname_spec, suffix=suffix, save=True)
+        _ = plotting.save_posterior_seds(fit, fname_spec, spec_only=spec_only, suffix=suffix, save=True)
         _ = plotting.save_full_posterior_sed(fit, fname_spec, suffix=suffix, save=True)
         _ = plotting.save_posterior_sfh(fit, fname_spec, suffix=suffix, save=True)
     
