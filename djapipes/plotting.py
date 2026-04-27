@@ -1272,7 +1272,7 @@ def save_posterior_seds(fit, fname_spec, spec_only=False, suffix=None, save=Fals
                                   fitting.convert_cgs2mujy(lsqfit_model_cgs["lsq_fit_84_cgs"], wavs*1e4)],
                                   names=["lsq_fit_16_mujy", "lsq_fit_50_mujy", "lsq_fit_84_mujy"])
         
-        sed_flexilines_cgs = Table(np.percentile(fit.posterior.samples["spectrum"]+fit.galaxy.msa_model,  (16, 50, 84), axis=0).T,
+        sed_flexilines_cgs = Table(np.percentile(fit.posterior.samples["spectrum"]+fit.galaxy.msa_model*fit.posterior.samples["calib"],  (16, 50, 84), axis=0).T,
                                    names=["sed_flexilines_16_cgs", "sed_flexilines_50_cgs", "sed_flexilines_84_cgs"])
         sed_flexilines_mujy = Table([fitting.convert_cgs2mujy(sed_flexilines_cgs["sed_flexilines_16_cgs"], wavs*1e4),
                                      fitting.convert_cgs2mujy(sed_flexilines_cgs["sed_flexilines_50_cgs"], wavs*1e4),
@@ -1337,6 +1337,7 @@ def save_posterior_seds(fit, fname_spec, spec_only=False, suffix=None, save=Fals
 
     if spec_only:
         tab_maxL = Table([maxL_sed_cgs, maxL_sed_mujy], names=["sed_maxL_cgs", "sed_maxL_mujy"])
+        calib_maxL = None
     elif not spec_only:
         calib_maxL = djautils.generate_calib_curve([maxL_model_components["calib"]["0"], maxL_model_components["calib"]["1"], maxL_model_components["calib"]["2"]],
                                         fit.galaxy.spectrum[:,0],
@@ -1346,11 +1347,14 @@ def save_posterior_seds(fit, fname_spec, spec_only=False, suffix=None, save=Fals
         tab_maxL = Table([maxL_sed_cgs, maxL_sed_mujy, calib_maxL], names=["sed_maxL_cgs", "sed_maxL_mujy", "calib_maxL"])
 
     if fit.galaxy.msa_line_components is not None:
-        lsqfit_maxL_cgs, lsqfit_maxL_fluxes = pipes.fitting.flexilines.msa_line_model(fit.posterior.fitted_model,
+        lsqfit_maxL_cgs, _ = pipes.fitting.flexilines.msa_line_model(fit.posterior.fitted_model,
                                                                                     maxL_sed_cgs/calib_maxL,
                                                                                     noise=None)
         lsqfit_maxL_mujy = fitting.convert_cgs2mujy(lsqfit_maxL_cgs, fit.galaxy.spectrum[:,0])
-        maxL_flexilines_sed_cgs = maxL_sed_cgs + lsqfit_maxL_cgs
+        if spec_only:
+            maxL_flexilines_sed_cgs = maxL_sed_cgs + lsqfit_maxL_cgs
+        elif not spec_only:
+            maxL_flexilines_sed_cgs = maxL_sed_cgs + lsqfit_maxL_cgs*calib_maxL
         maxL_flexilines_sed_mujy = fitting.convert_cgs2mujy(maxL_flexilines_sed_cgs, fit.galaxy.spectrum[:,0])
 
         tab_maxL = hstack([tab_maxL,
