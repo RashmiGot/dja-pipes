@@ -472,7 +472,8 @@ def load_spec(ID):
 
     spec_wavs = np.array(spec_tab['wave'])*1e4 # convert wavs to angstrom
 
-    spec_wavs_mask = (spec_wavs>7000) & (spec_wavs<53000) # wavs within photometric filter limits
+    # spec_wavs_mask = (spec_wavs>7000) & (spec_wavs<53000) # wavs within photometric filter limits
+    spec_wavs_mask = (spec_wavs>np.min(spec_wavs)) & (spec_wavs<np.max(spec_wavs))
 
     _sys_err = 0.02 # set a systematic error floor of 2%
 
