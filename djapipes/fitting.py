@@ -177,7 +177,7 @@ def calc_filt_int(filt_list, spec, z):
             valid = (spec["err"] > 0) & np.isfinite(spec["err"] + spec["flux"])
 
         # Normalization of filter sampled by the spectrum
-        filt_norm = np.trapz(
+        filt_norm = np.trapezoid(
             (filter_int / spec["wave"])[valid], spec["wave"][valid]
         )
 
