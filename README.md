@@ -21,6 +21,8 @@ Install fork of the ``bagpipes`` repo:
 pip install git+https://github.com/RashmiGot/bagpipes.git#egg=bagpipes
 ```
 
+** TBD: instructions for downloading and adding custom model grids needed for the bagpipes fork. **
+
 There are occasionally problems installing some of the downstream dependencies in the latest Python versions, e.g., where the above returns an exception `ERROR: ... photutils-1.12.0.tar.gz does not appear to be a Python project: neither 'setup.py' nor 'pyproject.toml' found.` This can be resolved with the workaround below:
 
 ```bash
