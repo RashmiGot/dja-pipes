@@ -30,6 +30,8 @@ jobs:
     name: upload to PyPI
     needs: [build_sdist]
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
     if: github.event_name == 'push' &&
         github.event.ref_type == 'tag' &&
         github.ref == 'refs/heads/${{ github.event.repository.default_branch }}'
