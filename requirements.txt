@@ -1,9 +1,8 @@
-git+https://github.com/RashmiGot/bagpipes.git#egg=bagpipes
-jupyter
-git+https://github.com/astropy/photutils.git@1.12.0
+# git+https://github.com/RashmiGot/bagpipes.git#egg=bagpipes
+photutils==1.12.0
 grizli[aws]
 eazy
-git+https://github.com/karllark/dust_attenuation.git
+# git+https://github.com/karllark/dust_attenuation.git
 msaexp
 wget
 tabulate
