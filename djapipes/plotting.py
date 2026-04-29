@@ -17,6 +17,7 @@ import os
 from . import fitting
 from . import database
 from . import utils as djautils
+from . import __version__
 
 # ------- PLOTTING & FORMATTING ------- #
 import matplotlib.pyplot as plt
@@ -1016,6 +1017,9 @@ def save_posterior_sample_dists(fit, fname_spec, spec_only, suffix, save=False):
     if "runtime" in fit.results.keys():
         runtime = np.round(fit.results["runtime"], 2)
         tab_stacked.add_column(runtime, name="runtime")
+
+    # save djapipes version in table
+    tab_stacked.add_column(__version__, name="djapipes_version")
 
     if save:
         if not os.path.exists("./pipes/cats/" + fit.run):
