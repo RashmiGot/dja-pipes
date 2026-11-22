@@ -226,6 +226,7 @@ def run_pipes_on_dja_spec(file_spec="rubies-egs61-v3_prism-clear_4233_42328.spec
                           valid_threshold=400,
                           spec_only=False,
                           mask_lines=False, line_wavs=np.array([4970, 6562.81]), delta_lam=0,
+                          mask_cont=False, cont_wavs=None,
                           sfh="continuity", n_age_bins=10, scale_disp=1.3, dust_type="kriek",
                           msa_line_components=None,
                           extended_prism_wavs=False,
@@ -245,6 +246,9 @@ def run_pipes_on_dja_spec(file_spec="rubies-egs61-v3_prism-clear_4233_42328.spec
     mask_lines : to mask lines or not, format=bool
     line_wavs : rest-frame wavelengths of lines to mask in angstroms, format=numpy array
     delta_lam : width of masking region in angstroms, format=float
+    mask_cont : to mask continuum regions or not, format=bool
+    cont_wavs : rest-frame wavelength ranges of continuum regions to mask in angstroms,
+                e.g. [[0, 3200], [4500, 1e5]], format=list or numpy array of shape (N, 2)
     sfh : name of star-formation history, format=string
     n_age_bins : number of bins for SFH, only needed if sfh="continuity", format=int
     scale_disp : multiplicative factor on LSF, format=float
@@ -297,6 +301,7 @@ def run_pipes_on_dja_spec(file_spec="rubies-egs61-v3_prism-clear_4233_42328.spec
     z_spec = database.pull_zspec_from_db(fname_spec)
 
     _ = fitting.mask_emission_lines(fname_spec, z_spec, mask_lines=mask_lines, line_wavs=line_wavs, delta_lam=delta_lam)
+    _ = fitting.mask_continuum_regions(fname_spec, z_spec, mask_cont=mask_cont, cont_wavs=cont_wavs)
 
     # photometry
     if not spec_only:

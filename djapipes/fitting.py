@@ -480,7 +480,11 @@ def load_spec(ID):
     flux_muJy = np.array(spec_tab['flux'])
     fluxerr0_muJy = np.array(spec_tab['err'])
     fluxerr_muJy = np.sqrt(fluxerr0_muJy**2 + (np.maximum(_sys_err * flux_muJy, 0))**2)
-    fluxerr_muJy[np.invert(spec_tab['line_mask'])] = np.nanmean(fluxerr_muJy) * 1e3 # only if line masking is used
+    # combine emission line mask and continuum mask (if present)
+    fit_mask = np.array(spec_tab['line_mask'])
+    if "cont_mask" in spec_tab.colnames:
+        fit_mask = fit_mask & np.array(spec_tab['cont_mask'])
+    fluxerr_muJy[np.invert(fit_mask)] = np.nanmean(fluxerr_muJy) * 1e3 # only if line/continuum masking is used
     flux_cgs = convert_mujy2cgs(flux_muJy,spec_wavs)
     fluxerr_cgs = convert_mujy2cgs(fluxerr_muJy,spec_wavs)
 
@@ -563,6 +567,50 @@ def mask_emission_lines(fname_spec, z_spec, file_path='files/', mask_lines=False
         spec_tab.replace_column("line_mask", line_mask)
     elif "line_mask" not in spec_tab.colnames:
         spec_tab.add_column(line_mask, index=-1, name="line_mask")
+    spec_tab.write(f'{file_path}{fname_spec}', format='fits', overwrite=True)
+
+    return None
+
+
+
+# --------------------------------------------------------------
+# --------------------------------------- MASK CONTINUUM REGIONS
+# --------------------------------------------------------------
+
+def mask_continuum_regions(fname_spec, z_spec, file_path='files/', mask_cont=False, cont_wavs=None):
+    """
+    Masks continuum regions of spectrum, writes spectrum to a fits file
+
+    Parameters
+    ----------
+    fname_spec : filename of spectrum, e.g. 'rubies-uds3-v3_prism-clear_4233_62812.spec.fits', format=str
+    z_spec : spectroscopic redshift, format=float
+    file_path : path to folder in which outfile is stored, format=str
+    mask_cont : boolean to determine whether or not to mask continuum regions, format=bool
+    cont_wavs : rest-frame wavelength ranges to mask out in angstrom,
+                e.g. [[0, 3200], [4500, 1e5]], format=list or numpy array of shape (N, 2)
+
+    Returns
+    -------
+    None
+    """
+
+    # spectrum
+    spec_tab = Table.read(f'{file_path}{fname_spec}', hdu=1)
+    spec_wavs = spec_tab['wave'] # in microns
+
+    # making mask to identify continuum regions to exclude from fit
+    cont_mask = np.array([True]*len(spec_wavs))
+    if mask_cont:
+        for i in range(len(cont_wavs)):
+            mask_i = (spec_wavs>cont_wavs[i][0]/1e4*(1+z_spec)) & (spec_wavs<cont_wavs[i][1]/1e4*(1+z_spec))
+            cont_mask = cont_mask & np.invert(mask_i)
+
+    # rewriting new spec table to original spectrum file
+    if "cont_mask" in spec_tab.colnames:
+        spec_tab.replace_column("cont_mask", cont_mask)
+    elif "cont_mask" not in spec_tab.colnames:
+        spec_tab.add_column(cont_mask, index=-1, name="cont_mask")
     spec_tab.write(f'{file_path}{fname_spec}', format='fits', overwrite=True)
 
     return None
